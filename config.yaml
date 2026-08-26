@@ -1,0 +1,34 @@
+# TranscribeAI configuration
+# ---------------------------
+# Every AI task is routed to a provider + model here. Switching a task between
+# local (ollama) and cloud (claude / openai) is an edit to this file — no code
+# changes. Providers: claude | openai | ollama
+
+transcription:
+  # Runs locally on the GPU via faster-whisper (not part of the LLM routing).
+  # Models: large-v3 (best), distil-large-v3 (faster, near-parity English),
+  # medium, small. 8GB VRAM handles large-v3 with int8_float16.
+  model: distil-large-v3
+  device: cuda          # cuda | cpu | auto
+  compute_type: int8_float16
+
+tasks:
+  summarize:            # per-lecture structured notes (M2)
+    provider: claude
+    model: claude-sonnet-5
+  chat:                 # course Q&A tutor (M4)
+    provider: claude
+    model: claude-sonnet-5
+  quiz:                 # quizzes & flashcards (M5)
+    provider: ollama
+    model: qwen2.5:7b
+  embeddings:           # RAG vector embeddings (M4) — local keeps it free
+    provider: ollama
+    model: nomic-embed-text
+
+storage:
+  data_dir: ../data     # relative to backend/; audio, slides, sqlite db live here
+
+server:
+  host: 0.0.0.0         # 0.0.0.0 so your phone on the same Wi-Fi can reach it
+  port: 8000

@@ -1,0 +1,20 @@
+# Environment / secrets
+.env
+
+# Data (recordings, DB, slides) — never commit
+data/
+
+# Python
+backend/.venv/
+__pycache__/
+*.pyc
+*.egg-info/
+.pytest_cache/
+
+# Node
+frontend/node_modules/
+frontend/dist/
+
+# OS / editor
+Thumbs.db
+.DS_Store

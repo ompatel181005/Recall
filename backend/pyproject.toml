@@ -1,0 +1,28 @@
+[project]
+name = "transcribeai-backend"
+version = "0.1.0"
+description = "TranscribeAI backend — lecture transcription and AI study API"
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.32",
+    "sqlmodel>=0.0.22",
+    "pyyaml>=6.0",
+    "python-dotenv>=1.0",
+    "python-multipart>=0.0.12",   # file uploads (M1)
+    "faster-whisper>=1.1",        # local GPU transcription (used from M1)
+    "anthropic>=0.40",            # Claude provider
+    "openai>=1.55",               # OpenAI-compatible provider
+    "httpx>=0.27",                # Ollama provider
+    "pypdf>=5.0",                 # slide PDF text extraction (M3)
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0", "httpx>=0.27"]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+packages = ["app", "app.routers", "app.services", "app.services.providers"]
