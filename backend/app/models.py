@@ -1,6 +1,7 @@
 """Domain schema: Course -> Lecture -> Transcript / SlideDeck / Note.
 
-Schema only for M0; CRUD arrives in M1. See docs/SPEC.md for the domain model.
+See docs/SPEC.md for the domain model. Files (audio, PDFs) live on disk under
+data/ and are referenced here by relative path, never stored as blobs.
 """
 
 from datetime import date, datetime, timezone

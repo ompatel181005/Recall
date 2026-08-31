@@ -65,18 +65,33 @@ gitignored.
     provider+model for a named task (`summarize`, `chat`, `quiz`, `embeddings`).
 - **Web search** (M5): Claude's built-in web-search tool when the task routes
   to Claude; SearXNG or DuckDuckGo scraping fallback for fully local mode.
-- **Recording** (M1): browser `MediaRecorder` for the mic; online lectures via
-  the OS loopback device (e.g. "Stereo Mix"/VB-Cable) selected as input, or by
-  uploading the meeting recording file. Uploads accept common audio/video
-  formats; ffmpeg extracts audio when needed.
+- **Recording** (M1): browser `MediaRecorder`. Three sources — the microphone
+  (with a device picker, so an OS loopback input like "Stereo Mix"/VB-Cable
+  works too), tab/screen audio via `getDisplayMedia` for online lectures, or
+  both mixed through a `WebAudio` graph. Existing recordings can be uploaded
+  instead; ffmpeg extracts the audio track from video and produces a seekable
+  MP3 for playback (browser WebM carries no duration header).
+- **Background jobs** (`services/jobs.py`, M1): one daemon worker thread drains
+  a queue so request handlers never block on the GPU and only one Whisper model
+  is resident at a time. Progress is in-memory; lecture status and transcripts
+  are in SQLite, so a restart costs only the percentage readout.
 
 ## API surface (grows per milestone)
 
 - `GET  /api/health` — status + which providers are usable (key present,
   Ollama reachable, CUDA available).
-- `CRUD /api/courses`, `/api/courses/{id}/lectures` (M1)
-- `POST /api/lectures/{id}/audio` (upload/finish recording), job status,
-  `GET /api/lectures/{id}/transcript` (M1)
+- `GET|POST /api/courses`, `GET|PATCH|DELETE /api/courses/{id}` (M1) —
+  deleting a course cascades to its lectures, transcripts and audio files.
+- `GET|POST /api/lectures`, `GET|PATCH|DELETE /api/lectures/{id}` (M1);
+  list filtered by `?course_id=`.
+- `POST /api/lectures/{id}/audio` — multipart upload; stores the file, probes
+  duration and queues transcription (M1).
+- `GET  /api/lectures/{id}/audio` — serves the recording with Range support so
+  the player can seek (M1).
+- `POST /api/lectures/{id}/transcribe`, `GET /api/lectures/{id}/job` — queue a
+  run and poll its progress (M1).
+- `GET  /api/lectures/{id}/transcript` (JSON segments) and
+  `/transcript.txt?timestamps=` (plain-text export) (M1).
 - `POST /api/lectures/{id}/notes` (M2), `/slides` (M3), `/api/courses/{id}/chat`
   (M4), quiz/flashcard endpoints (M5)
 

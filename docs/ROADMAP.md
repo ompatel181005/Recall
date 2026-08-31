@@ -7,21 +7,23 @@ Build simple first; each milestone is independently shippable and usable.
 Repo, spec, config, runnable FastAPI skeleton with `/api/health`, provider
 abstraction stubs, React shell that shows backend status.
 
-## M1 — Record & Transcribe
+## M1 — Record & Transcribe ✅ (done)
 
-The app becomes genuinely useful: record a lecture, get a transcript.
+The app became genuinely useful: record a lecture, get a transcript.
 
-- Course & Lecture CRUD (API + sidebar UI).
-- Record in the browser (MediaRecorder) with pause/resume; input-device picker
-  (covers mic and system-loopback for online lectures). Upload existing
-  audio/video files; ffmpeg audio extraction.
-- Background transcription job (faster-whisper on CUDA), lecture status
-  recorded → transcribing → ready; first-run model download.
-- Transcript viewer: timestamped segments, click-to-seek audio player, plain-text
-  export.
+- Course & Lecture CRUD (API + sidebar UI), cascading delete of audio files.
+- Record in the browser (MediaRecorder) with pause/resume, elapsed clock and a
+  live level meter; source picker for microphone (with input-device list),
+  tab/screen audio for online lectures, or both mixed. Upload existing
+  audio/video files instead; ffmpeg extracts audio and makes a seekable MP3.
+- Background transcription job (faster-whisper on CUDA) behind a single worker
+  thread; lecture status recorded → transcribing → ready/failed with live
+  progress; first-run model download.
+- Transcript viewer: timestamped segments, click-to-seek audio player with the
+  current segment highlighted, in-transcript search, copy, and .txt export.
 
-**Accept:** record 5 min of speech in class conditions → readable, timestamped
-transcript appears without touching a terminal.
+**Accept:** met — a lecture recording becomes a readable, timestamped
+transcript without touching a terminal.
 
 ## M2 — Summaries & Notes
 
