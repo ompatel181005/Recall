@@ -244,6 +244,7 @@ export default function App() {
                 <span className="row">
                   <span className="muted small">
                     Delete “{course.name}” and all {course.lecture_count} lectures?
+                    Recordings move to <code>data/.trash</code>.
                   </span>
                   <button className="danger" onClick={removeCourse}>
                     Yes, delete

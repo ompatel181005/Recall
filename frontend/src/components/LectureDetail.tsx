@@ -273,7 +273,9 @@ export default function LectureDetail({
       <footer className="detail-foot">
         {confirmDelete ? (
           <span className="row">
-            <span className="muted">Delete this lecture and its audio?</span>
+            <span className="muted small">
+              Delete this lecture? Its audio and text move to <code>data/.trash</code>.
+            </span>
             <button className="danger" onClick={remove}>
               Yes, delete
             </button>

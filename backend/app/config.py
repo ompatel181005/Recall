@@ -19,7 +19,15 @@ class Settings:
             self._cfg: dict[str, Any] = yaml.safe_load(f)
 
         storage = self._cfg.get("storage", {})
-        self.data_dir = (REPO_ROOT / "backend" / storage.get("data_dir", "../data")).resolve()
+        # TRANSCRIBEAI_DATA_DIR redirects everything — database, audio, slides —
+        # somewhere else. Tests must set it: they create and delete courses
+        # wholesale, and pointing that at the real data_dir destroys recordings.
+        override = os.getenv("TRANSCRIBEAI_DATA_DIR", "").strip()
+        self.data_dir = (
+            Path(override).resolve()
+            if override
+            else (REPO_ROOT / "backend" / storage.get("data_dir", "../data")).resolve()
+        )
         self.data_dir.mkdir(parents=True, exist_ok=True)
         self.db_path = self.data_dir / "transcribeai.db"
 

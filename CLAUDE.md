@@ -31,6 +31,12 @@ runs locally on a Windows 11 laptop (RTX 4060 8GB VRAM). Read
 - Secrets live in `.env` (see `.env.example`), never in config.yaml or code.
 - All user data (SQLite DB, audio, PDFs) lives under `data/` — gitignored;
   files on disk are referenced by path from the DB, never stored as blobs.
+- **Recordings are irreplaceable.** A lecture captures a one-off event that
+  cannot be re-recorded. Deleting one moves its audio and text to
+  `data/.trash/` rather than destroying them; keep it that way.
+- **Never run tests against the real `data/`.** Set `TRANSCRIBEAI_DATA_DIR`
+  to a scratch path first. Test code creates and deletes courses wholesale,
+  and a cascade delete against real data destroys the user's lectures.
 - API routes live under `/api/*` in `backend/app/routers/`; keep routers thin,
   logic in `backend/app/services/`.
 

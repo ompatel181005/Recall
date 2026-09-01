@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import shutil
+from datetime import datetime
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
@@ -65,13 +66,48 @@ def _get(session: Session, lecture_id: int) -> Lecture:
     return lecture
 
 
+def _trash_lecture(lecture: Lecture, transcript: Transcript | None, notes: list[Note]) -> None:
+    """Move a deleted lecture's audio aside instead of destroying it, with its
+    text alongside so it can be restored by hand.
+
+    A lecture is an irreplaceable recording of a one-off event: a mis-click on
+    "Delete course" must not be able to lose a term's worth. Nothing reads
+    data/.trash, so emptying it stays a deliberate, manual decision.
+    """
+    stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+    destination = settings.data_dir / ".trash" / f"{stamp}-lecture-{lecture.id}"
+    destination.mkdir(parents=True, exist_ok=True)
+
+    record = {
+        "lecture": lecture.model_dump(mode="json"),
+        "transcript": transcript.model_dump(mode="json") if transcript else None,
+        "notes": [note.model_dump(mode="json") for note in notes],
+    }
+    (destination / "lecture.json").write_text(
+        json.dumps(record, indent=2, ensure_ascii=False), encoding="utf-8"
+    )
+
+    source = _audio_dir(lecture.id)
+    if source.exists():
+        try:
+            shutil.move(str(source), str(destination / "audio"))
+        except OSError:
+            # Never let a filesystem problem block the delete the user asked for.
+            shutil.rmtree(source, ignore_errors=True)
+
+
 def delete_lecture_records(session: Session, lecture: Lecture) -> None:
-    """Remove a lecture, everything hanging off it, and its files on disk.
-    Caller commits. Shared with the course-delete cascade."""
+    """Remove a lecture and everything hanging off it. Its audio and text are
+    moved to data/.trash first. Caller commits. Shared with the course cascade."""
+    transcript = session.exec(
+        select(Transcript).where(Transcript.lecture_id == lecture.id)
+    ).first()
+    notes = list(session.exec(select(Note).where(Note.lecture_id == lecture.id)).all())
+    _trash_lecture(lecture, transcript, notes)
+
     for model in (Transcript, Note, SlideDeck):
         for row in session.exec(select(model).where(model.lecture_id == lecture.id)).all():
             session.delete(row)
-    shutil.rmtree(_audio_dir(lecture.id), ignore_errors=True)
     session.delete(lecture)
 
 

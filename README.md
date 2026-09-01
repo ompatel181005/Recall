@@ -78,4 +78,9 @@ editing that file. Transcription model/device also lives there. API keys go in
   topic the lecturer only mentioned in passing. Click any [MM:SS] in the notes
   to jump to what was actually said.
 - All recordings, slides, and the database live under `data/` and are never
-  committed.
+  committed. They persist across restarts; nothing deletes them on its own.
+- Deleting a lecture or course moves its audio and text into `data/.trash/`,
+  one timestamped folder per lecture with a `lecture.json` holding the title,
+  transcript and notes. Nothing ever empties it — that is your call.
+- Set `TRANSCRIBEAI_DATA_DIR` to run against a throwaway data directory, which
+  is what any automated test should do.
