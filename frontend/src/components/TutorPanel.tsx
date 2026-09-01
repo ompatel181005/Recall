@@ -134,7 +134,9 @@ export default function TutorPanel({
           {status
             ? `${status.indexed_lectures} of ${status.total_lectures} lectures searchable · ${status.chunks} passages`
             : 'Checking index…'}
-          {unindexed > 0 && ' — transcribe the rest to include them'}
+          {/* Unindexed can mean "not transcribed yet" or "transcribed before
+              search existed", and Re-index is the fix for the second. */}
+          {unindexed > 0 && ` — ${unindexed} not searchable yet; Re-index covers any already transcribed`}
         </span>
         <span className="row">
           <button onClick={reindex}>Re-index</button>
