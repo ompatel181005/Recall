@@ -5,7 +5,7 @@ runs locally on a Windows 11 laptop (RTX 4060 8GB VRAM). Read
 [docs/SPEC.md](docs/SPEC.md) for the full product spec and
 [docs/ROADMAP.md](docs/ROADMAP.md) for milestones before building features.
 
-**Current status: M2 (summaries & notes) done. Next milestone: M3 — Slides.**
+**Current status: M3 (slides) done. Next milestone: M4 — Q&A Tutor (RAG).**
 
 ## Stack
 

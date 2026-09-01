@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { api, type LectureJobs, type Lecture, type Transcript } from '../api'
 import NotesPanel from './NotesPanel'
+import SlidesPanel from './SlidesPanel'
 
 function formatClock(seconds: number): string {
   const s = Math.max(0, Math.floor(seconds))
@@ -22,7 +23,7 @@ export default function LectureDetail({
 }) {
   const [transcript, setTranscript] = useState<Transcript | null>(null)
   const [jobs, setJobs] = useState<LectureJobs | null>(null)
-  const [tab, setTab] = useState<'transcript' | 'notes'>('transcript')
+  const [tab, setTab] = useState<'transcript' | 'notes' | 'slides'>('transcript')
   const [currentTime, setCurrentTime] = useState(0)
   const [query, setQuery] = useState('')
   const [title, setTitle] = useState(lecture.title)
@@ -201,31 +202,46 @@ export default function LectureDetail({
         </button>
       )}
 
-      {lecture.has_transcript && (
-        <nav className="tabs">
-          <button
-            className={`tab ${tab === 'transcript' ? 'selected' : ''}`}
-            onClick={() => setTab('transcript')}
-          >
-            Transcript
-          </button>
-          <button
-            className={`tab ${tab === 'notes' ? 'selected' : ''}`}
-            onClick={() => setTab('notes')}
-          >
-            Notes
-            {notesRunning && <span className="tab-dot" aria-label="generating" />}
-          </button>
-        </nav>
-      )}
+      <nav className="tabs">
+        <button
+          className={`tab ${tab === 'transcript' ? 'selected' : ''}`}
+          onClick={() => setTab('transcript')}
+        >
+          Transcript
+        </button>
+        <button
+          className={`tab ${tab === 'notes' ? 'selected' : ''}`}
+          onClick={() => setTab('notes')}
+        >
+          Notes
+          {notesRunning && <span className="tab-dot" aria-label="generating" />}
+        </button>
+        <button
+          className={`tab ${tab === 'slides' ? 'selected' : ''}`}
+          onClick={() => setTab('slides')}
+        >
+          Slides
+        </button>
+      </nav>
 
-      {tab === 'notes' && lecture.has_transcript && (
-        <NotesPanel
-          lectureId={lecture.id}
-          job={jobs?.notes ?? null}
-          onGenerate={refreshJobs}
-          onSeek={seekTo}
-        />
+      {tab === 'notes' &&
+        (lecture.has_transcript ? (
+          <NotesPanel
+            lectureId={lecture.id}
+            job={jobs?.notes ?? null}
+            onGenerate={refreshJobs}
+            onSeek={seekTo}
+          />
+        ) : (
+          <p className="muted">Transcribe this lecture before generating notes.</p>
+        ))}
+
+      {/* Slides can go on before the audio is transcribed — often they're
+          available before the lecture is even recorded. */}
+      {tab === 'slides' && <SlidesPanel lectureId={lecture.id} />}
+
+      {tab === 'transcript' && !lecture.has_transcript && (
+        <p className="muted">No transcript yet.</p>
       )}
 
       {tab === 'transcript' && transcript && (

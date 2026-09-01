@@ -541,6 +541,38 @@ button.chip.selected {
   resize: vertical;
 }
 
+/* ---- slides ---- */
+
+.slides-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.deck-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.deck-list li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 10px 4px;
+  border-bottom: 1px solid var(--border);
+}
+
+.deck-name {
+  flex: 1;
+  min-width: 160px;
+  color: var(--text-h);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 /* ---- rendered markdown ---- */
 
 .markdown {

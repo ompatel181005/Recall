@@ -20,7 +20,7 @@ from collections.abc import Callable
 from sqlmodel import Session, select
 
 from ..db import engine
-from ..models import Course, Lecture, Note, Transcript
+from ..models import Course, Lecture, Note, SlideDeck, Transcript
 from .providers.base import LLMProvider
 from .providers.registry import get_provider, get_provider_for_task
 
@@ -34,6 +34,11 @@ CHARS_PER_TOKEN = 4
 SINGLE_PASS_TOKEN_BUDGET = 12_000
 SECTION_TOKEN_BUDGET = 7_000
 
+# Slides ride along with every prompt, including each section of a long lecture,
+# so they are capped. Decks are normally far smaller than this; a 200-slide one
+# gets truncated rather than crowding out the transcript it is meant to support.
+SLIDE_TOKEN_BUDGET = 4_000
+
 SYSTEM = """You write study notes for a university student from a lecture transcript.
 
 The transcript comes from automatic speech recognition: it contains mis-heard \
@@ -41,11 +46,18 @@ technical terms, unreliable punctuation and no speaker labels. Infer the intende
 term when the context makes it obvious; when a passage is too garbled to \
 interpret, say so rather than guessing at it.
 
+You may also be given the text of the lecturer's slides. Slides and transcript \
+are both source material and nothing else is. Use the slides to fix terms and \
+notation the speech recogniser mangled, and to recover anything the lecturer \
+pointed at instead of reading out. When a point comes from the slides rather \
+than from something said aloud, mark it "(from slides)" — the student needs to \
+know which parts they can expect to hear in the recording.
+
 Rules:
 - Follow the lecture's own order. Do not reorganise the material into a textbook \
 structure.
-- Write only what this transcript supports. Never add outside facts, definitions, \
-formulas or examples the lecturer did not actually give.
+- Write only what the transcript and the slides support. Never add outside \
+facts, definitions, formulas or examples that appear in neither.
 - If the lecturer only announces or names a topic without developing it, record \
 that it was introduced but not covered, and move on. Do NOT supply the standard \
 textbook treatment in its place. A gap the student can see is far more useful \
@@ -95,16 +107,24 @@ these notes go wrong:
                       recording."
   Wrong notes:     writing out the coefficient integrals. The lecturer never
                    said them, so they must not appear, however standard they are.
-
+{slides}
 Transcript:
 {transcript}"""
+
+SLIDES_BLOCK = """
+Slides for this lecture, as text extracted from the PDF. Slide numbers are the
+deck's own. Treat these as material the lecturer showed:
+
+{slide_text}
+"""
 
 SECTION_TEMPLATE = """This is part {index} of {total} of a longer lecture transcript.
 
 Write detailed bullet notes for this part only, keeping [MM:SS] timestamps on \
 each point. Do not write an overview, introduction or conclusion — the parts \
-will be merged afterwards. Write only what this part of the transcript says.
-
+will be merged afterwards. Write only what this part of the transcript, and the \
+slides if given, actually say.
+{slides}
 Transcript part:
 {transcript}"""
 
@@ -209,28 +229,44 @@ def _chunk(segments: list[dict], budget: int) -> list[list[dict]]:
     return chunks
 
 
+def _slides_block(slide_text: str) -> str:
+    """The slides section of a prompt, truncated to its budget, or nothing at
+    all when the lecture has no usable deck."""
+    if not slide_text.strip():
+        return ""
+    limit = SLIDE_TOKEN_BUDGET * CHARS_PER_TOKEN
+    if len(slide_text) > limit:
+        slide_text = slide_text[:limit].rsplit("\n", 1)[0] + "\n[… remaining slides omitted]"
+    return SLIDES_BLOCK.format(slide_text=slide_text)
+
+
 def generate_markdown(
     provider: LLMProvider,
     course_name: str,
     lecture_title: str,
     segments: list[dict],
+    slide_text: str = "",
     progress_cb: Callable[[float, str], None] | None = None,
 ) -> str:
     """One pass for a normal lecture; section-then-merge for a long one."""
     body = transcript_lines(segments)
+    slides_block = _slides_block(slide_text)
 
     def report(fraction: float, message: str) -> None:
         if progress_cb:
             progress_cb(fraction, message)
 
-    if estimate_tokens(body) <= SINGLE_PASS_TOKEN_BUDGET:
+    if estimate_tokens(body + slides_block) <= SINGLE_PASS_TOKEN_BUDGET:
         report(0.2, f"Summarising with {provider.name}/{provider.model}…")
         return strip_empty_sections(
             provider.complete(
                 [{
                     "role": "user",
                     "content": NOTES_TEMPLATE.format(
-                        course=course_name, title=lecture_title, transcript=body
+                        course=course_name,
+                        title=lecture_title,
+                        slides=slides_block,
+                        transcript=body,
                     ),
                 }],
                 system=SYSTEM,
@@ -248,7 +284,10 @@ def generate_markdown(
                 [{
                     "role": "user",
                     "content": SECTION_TEMPLATE.format(
-                        index=index, total=len(chunks), transcript=transcript_lines(chunk)
+                        index=index,
+                        total=len(chunks),
+                        slides=slides_block,
+                        transcript=transcript_lines(chunk),
                     ),
                 }],
                 system=SYSTEM,
@@ -288,6 +327,12 @@ def run_job(job) -> None:
         transcript = session.exec(
             select(Transcript).where(Transcript.lecture_id == job.lecture_id)
         ).first()
+        decks = session.exec(
+            select(SlideDeck)
+            .where(SlideDeck.lecture_id == job.lecture_id)
+            .order_by(SlideDeck.created_at)
+        ).all()
+        slide_text = "\n\n".join(d.extracted_text for d in decks if d.extracted_text.strip())
         title = lecture.title
         course_name = course.name if course else ""
 
@@ -319,6 +364,7 @@ def run_job(job) -> None:
         course_name,
         title,
         segments,
+        slide_text=slide_text,
         progress_cb=lambda f, m: jobs.update(job, progress=f, message=m),
     )
     if not markdown:
@@ -326,6 +372,8 @@ def run_job(job) -> None:
         return
 
     used = f"{provider.name}/{provider.model}"
+    if slide_text.strip():
+        used += f" + {len(decks)} slide deck{'s' if len(decks) != 1 else ''}"
     with Session(engine) as session:
         note = Note(
             lecture_id=job.lecture_id,

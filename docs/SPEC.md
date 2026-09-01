@@ -77,10 +77,14 @@ gitignored.
   so a note request doesn't sit behind a long transcription. Progress is
   in-memory; durable state is in SQLite, so a restart costs only the
   percentage readout.
-- **Study notes** (`services/notes.py`, M2): a transcript plus its timestamps
-  goes to whichever provider `tasks.summarize` names. Lectures over ~12k
-  tokens are summarised section by section and merged. Empty sections the
-  model emits anyway are stripped deterministically afterwards.
+- **Study notes** (`services/notes.py`, M2): a transcript plus its timestamps,
+  and the slide text if any, goes to whichever provider `tasks.summarize`
+  names. Lectures over ~12k tokens are summarised section by section and
+  merged. Empty sections the model emits anyway are stripped afterwards.
+- **Slides** (`services/slides.py`, M3): pypdf extracts per-page text into one
+  string with `[Slide N]` markers, so the summariser can cite a slide number
+  and no schema change is needed. Image-only decks yield nothing and are
+  flagged rather than silently empty — OCR is out of scope.
 
 ## API surface (grows per milestone)
 
@@ -104,7 +108,11 @@ gitignored.
   edit and remove stored notes (M2).
 - `GET  /api/tasks/{task}/providers` — the configured provider plus its
   `compare_with` alternatives, each flagged available or not (M2).
-- `/slides` (M3), `/api/courses/{id}/chat` (M4), quiz/flashcard endpoints (M5)
+- `POST|GET /api/lectures/{id}/slides` — attach a slide PDF (text extracted on
+  upload) and list a lecture's decks (M3).
+- `GET /api/slides/{id}/file` (inline PDF), `GET /api/slides/{id}/text`
+  (what the summariser sees), `DELETE /api/slides/{id}` (M3).
+- `/api/courses/{id}/chat` (M4), quiz/flashcard endpoints (M5)
 
 ## Quality bars
 

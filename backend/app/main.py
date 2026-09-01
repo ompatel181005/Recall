@@ -12,7 +12,7 @@ from fastapi.staticfiles import StaticFiles
 
 from .config import REPO_ROOT, settings
 from .db import init_db
-from .routers import courses, lectures, notes, tasks
+from .routers import courses, lectures, notes, slides, tasks
 from .services import jobs, media
 from .services.providers.registry import provider_status
 from .services.transcribe import cuda_available
@@ -50,6 +50,7 @@ def health() -> dict:
 app.include_router(courses.router)
 app.include_router(lectures.router)
 app.include_router(notes.router)
+app.include_router(slides.router)
 app.include_router(tasks.router)
 
 _frontend_dist = REPO_ROOT / "frontend" / "dist"

@@ -20,9 +20,10 @@ from ..schemas import (
     LectureUpdate,
     NoteRead,
     NotesRequest,
+    SlideDeckRead,
     TranscriptRead,
 )
-from ..services import jobs, media
+from ..services import jobs, media, slides
 
 router = APIRouter(prefix="/api/lectures", tags=["lectures"])
 
@@ -47,6 +48,24 @@ def _audio_dir(lecture_id: int) -> Path:
     return settings.data_dir / "audio" / str(lecture_id)
 
 
+def _slides_dir(lecture_id: int) -> Path:
+    return settings.data_dir / "slides" / str(lecture_id)
+
+
+def _unique_path(directory: Path, filename: str) -> Path:
+    """Uploading two decks with the same name keeps both rather than clobbering
+    the first — a lecture can legitimately have `slides.pdf` twice."""
+    candidate = directory / filename
+    if not candidate.exists():
+        return candidate
+    stem, suffix = candidate.stem, candidate.suffix
+    for n in range(2, 1000):
+        candidate = directory / f"{stem}-{n}{suffix}"
+        if not candidate.exists():
+            return candidate
+    raise HTTPException(status_code=409, detail="Too many files with that name")
+
+
 def _read(session: Session, lecture: Lecture) -> LectureRead:
     has_transcript = (
         session.exec(select(Transcript.id).where(Transcript.lecture_id == lecture.id)).first()
@@ -66,7 +85,12 @@ def _get(session: Session, lecture_id: int) -> Lecture:
     return lecture
 
 
-def _trash_lecture(lecture: Lecture, transcript: Transcript | None, notes: list[Note]) -> None:
+def _trash_lecture(
+    lecture: Lecture,
+    transcript: Transcript | None,
+    notes: list[Note],
+    decks: list[SlideDeck],
+) -> None:
     """Move a deleted lecture's audio aside instead of destroying it, with its
     text alongside so it can be restored by hand.
 
@@ -82,15 +106,17 @@ def _trash_lecture(lecture: Lecture, transcript: Transcript | None, notes: list[
         "lecture": lecture.model_dump(mode="json"),
         "transcript": transcript.model_dump(mode="json") if transcript else None,
         "notes": [note.model_dump(mode="json") for note in notes],
+        "slides": [deck.model_dump(mode="json") for deck in decks],
     }
     (destination / "lecture.json").write_text(
         json.dumps(record, indent=2, ensure_ascii=False), encoding="utf-8"
     )
 
-    source = _audio_dir(lecture.id)
-    if source.exists():
+    for source, name in ((_audio_dir(lecture.id), "audio"), (_slides_dir(lecture.id), "slides")):
+        if not source.exists():
+            continue
         try:
-            shutil.move(str(source), str(destination / "audio"))
+            shutil.move(str(source), str(destination / name))
         except OSError:
             # Never let a filesystem problem block the delete the user asked for.
             shutil.rmtree(source, ignore_errors=True)
@@ -103,7 +129,10 @@ def delete_lecture_records(session: Session, lecture: Lecture) -> None:
         select(Transcript).where(Transcript.lecture_id == lecture.id)
     ).first()
     notes = list(session.exec(select(Note).where(Note.lecture_id == lecture.id)).all())
-    _trash_lecture(lecture, transcript, notes)
+    decks = list(
+        session.exec(select(SlideDeck).where(SlideDeck.lecture_id == lecture.id)).all()
+    )
+    _trash_lecture(lecture, transcript, notes, decks)
 
     for model in (Transcript, Note, SlideDeck):
         for row in session.exec(select(model).where(model.lecture_id == lecture.id)).all():
@@ -224,6 +253,77 @@ def get_audio(lecture_id: int, session: Session = Depends(get_session)) -> FileR
 
     media_type = AUDIO_MIME.get(path.suffix.lower(), "application/octet-stream")
     return FileResponse(path, media_type=media_type)
+
+
+@router.post("/{lecture_id}/slides", response_model=SlideDeckRead, status_code=201)
+async def upload_slides(
+    lecture_id: int,
+    file: UploadFile = File(...),
+    session: Session = Depends(get_session),
+) -> SlideDeckRead:
+    """Attach a slide PDF. Text is extracted now rather than at summarise time,
+    so a broken or image-only deck is reported while the user is still looking
+    at the upload."""
+    _get(session, lecture_id)
+
+    if Path(file.filename or "").suffix.lower() != ".pdf":
+        raise HTTPException(status_code=415, detail="Slides must be a PDF")
+
+    directory = _slides_dir(lecture_id)
+    directory.mkdir(parents=True, exist_ok=True)
+    # Keep the original name — it is how the student recognises the deck — but
+    # take only the basename so a crafted upload can't escape the directory.
+    safe_name = Path(file.filename or "slides.pdf").name
+    destination = _unique_path(directory, safe_name)
+
+    with destination.open("wb") as out:
+        shutil.copyfileobj(file.file, out, length=1024 * 1024)
+    await file.close()
+
+    try:
+        text, pages = slides.extract_pdf_text(destination)
+    except Exception as exc:
+        destination.unlink(missing_ok=True)
+        raise HTTPException(status_code=422, detail=f"Could not read this PDF: {exc}") from exc
+
+    deck = SlideDeck(
+        lecture_id=lecture_id,
+        filename=safe_name,
+        pdf_path=destination.relative_to(settings.data_dir).as_posix(),
+        extracted_text=text,
+    )
+    session.add(deck)
+    session.commit()
+    session.refresh(deck)
+
+    return SlideDeckRead(
+        id=deck.id,
+        lecture_id=lecture_id,
+        filename=deck.filename,
+        page_count=pages,
+        has_text=slides.has_text(text),
+        created_at=deck.created_at,
+    )
+
+
+@router.get("/{lecture_id}/slides", response_model=list[SlideDeckRead])
+def list_slides(
+    lecture_id: int, session: Session = Depends(get_session)
+) -> list[SlideDeckRead]:
+    decks = session.exec(
+        select(SlideDeck).where(SlideDeck.lecture_id == lecture_id).order_by(SlideDeck.created_at)
+    ).all()
+    return [
+        SlideDeckRead(
+            id=deck.id,
+            lecture_id=deck.lecture_id,
+            filename=deck.filename,
+            page_count=slides.page_count(deck.extracted_text),
+            has_text=slides.has_text(deck.extracted_text),
+            created_at=deck.created_at,
+        )
+        for deck in decks
+    ]
 
 
 @router.post("/{lecture_id}/transcribe")

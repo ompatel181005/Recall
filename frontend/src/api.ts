@@ -74,6 +74,15 @@ export interface Note {
   created_at: string
 }
 
+export interface SlideDeck {
+  id: number
+  lecture_id: number
+  filename: string
+  page_count: number
+  has_text: boolean
+  created_at: string
+}
+
 /** A provider/model this task can run on, from config.yaml. */
 export interface ProviderOption {
   provider: string
@@ -98,12 +107,12 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 
 /** Uploads go through XHR rather than fetch — a lecture recording is tens of
  *  megabytes and fetch can't report upload progress. */
-function upload(
+function upload<T>(
   path: string,
   file: Blob,
   filename: string,
   onProgress?: (fraction: number) => void,
-): Promise<Lecture> {
+): Promise<T> {
   return new Promise((resolve, reject) => {
     const form = new FormData()
     form.append('file', file, filename)
@@ -150,7 +159,7 @@ export const api = {
   deleteLecture: (id: number) => request<void>(`/lectures/${id}`, { method: 'DELETE' }),
 
   uploadAudio: (id: number, file: Blob, filename: string, onProgress?: (f: number) => void) =>
-    upload(`/lectures/${id}/audio`, file, filename, onProgress),
+    upload<Lecture>(`/lectures/${id}/audio`, file, filename, onProgress),
   transcribe: (id: number) => request<Job>(`/lectures/${id}/transcribe`, { method: 'POST' }),
   jobs: (id: number) => request<LectureJobs>(`/lectures/${id}/jobs`),
   transcript: (id: number) => request<Transcript>(`/lectures/${id}/transcript`),
@@ -164,6 +173,17 @@ export const api = {
   updateNote: (id: number, content_md: string) =>
     request<Note>(`/notes/${id}`, { method: 'PATCH', body: JSON.stringify({ content_md }) }),
   deleteNote: (id: number) => request<void>(`/notes/${id}`, { method: 'DELETE' }),
+
+  listSlides: (lectureId: number) => request<SlideDeck[]>(`/lectures/${lectureId}/slides`),
+  uploadSlides: (
+    lectureId: number,
+    file: Blob,
+    filename: string,
+    onProgress?: (f: number) => void,
+  ) => upload<SlideDeck>(`/lectures/${lectureId}/slides`, file, filename, onProgress),
+  deleteSlideDeck: (id: number) => request<void>(`/slides/${id}`, { method: 'DELETE' }),
+  slidePdfUrl: (id: number) => `/api/slides/${id}/file`,
+  slideTextUrl: (id: number) => `/api/slides/${id}/text`,
 
   taskProviders: (task: string) => request<ProviderOption[]>(`/tasks/${task}/providers`),
 

@@ -95,3 +95,15 @@ class ProviderOption(BaseModel):
     model: str
     is_default: bool
     available: bool
+
+
+class SlideDeckRead(BaseModel):
+    """Deck metadata. The extracted text can run to tens of thousands of
+    characters, so it is fetched separately rather than in every list."""
+
+    id: int
+    lecture_id: int
+    filename: str
+    page_count: int
+    has_text: bool
+    created_at: datetime

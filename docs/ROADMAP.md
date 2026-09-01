@@ -48,14 +48,22 @@ definition for a topic the lecturer only named. Prompt work cut this down a lot
 local-model notes as a draft to check against the transcript; a frontier model
 routed through `summarize` is the better choice when accuracy matters.
 
-## M3 — Slides
+## M3 — Slides ✅ (done)
 
-- Upload one or more PDFs per lecture; extract text (pypdf; OCR fallback out of
-  scope for now).
-- Slide text included in the summarization prompt context; slides listed and
-  viewable on the lecture page.
+- Upload one or more PDFs per lecture. Text is extracted at upload time (pypdf)
+  so a broken or image-only deck is reported while the user is still looking at
+  it; a deck with no readable text is flagged "no text" rather than silently
+  contributing nothing. OCR remains out of scope.
+- Slide text is passed to the summariser alongside the transcript, capped so a
+  huge deck cannot crowd out the lecture. Notes mark slide-sourced points
+  "(from slides)", which also tells the student which parts they will not hear
+  in the recording.
+- Decks are listed on the lecture's Slides tab, with the PDF viewable inline and
+  the extracted text inspectable — worth checking when a deck yields odd notes.
 
-**Accept:** a lecture with slides produces notes that reference slide content.
+**Accept:** met — with the deck attached, notes picked up the Dirichlet
+conditions, the square-wave coefficients and the Gibbs overshoot figure, none of
+which are anywhere in the audio.
 
 ## M4 — Q&A Tutor (RAG)
 
