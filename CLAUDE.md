@@ -28,7 +28,9 @@ runs locally on a Windows 11 laptop (RTX 4060 8GB VRAM). Read
 - **Local-first bias.** Prefer free local models (Whisper, Ollama) when quality
   is acceptable; reserve cloud (Claude / OpenAI-compatible) for
   quality-critical tasks. Keep both paths working.
-- Secrets live in `.env` (see `.env.example`), never in config.yaml or code.
+- Secrets live in `.env` (gitignored), never in config.yaml, code, or a
+  committed template. The variables are documented in README.md instead —
+  there is intentionally no `.env.example` to paste a real key into.
 - All user data (SQLite DB, audio, PDFs) lives under `data/` — gitignored;
   files on disk are referenced by path from the DB, never stored as blobs.
 - **Recordings are irreplaceable.** A lecture captures a one-off event that

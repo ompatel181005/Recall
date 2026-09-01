@@ -42,7 +42,7 @@ npm install
 
 # 3. Secrets (only for the cloud providers you use)
 cd ..
-copy .env.example .env   # then edit .env
+# create .env and add only the keys you need (see Configuration below)
 ```
 
 ## Run (development)
@@ -90,7 +90,32 @@ that is on you, not the software.
 `config.yaml` routes every AI task to a provider and model — switch any task
 between local (Ollama) and cloud (Claude, Gemini, or any OpenAI-compatible
 API) by editing that file. Transcription model/device also lives there. API
-keys go in `.env` (see `.env.example`).
+keys go in `.env` at the repo root, which is gitignored and must never be
+committed. Create it yourself and set only what you use:
+
+```ini
+# Anthropic — for tasks routed to provider: claude
+ANTHROPIC_API_KEY=
+
+# Google Gemini — free tier; key from https://aistudio.google.com/apikey
+GEMINI_API_KEY=
+
+# Any OpenAI-compatible endpoint (OpenAI, Groq, Together, OpenRouter, ...)
+OPENAI_API_KEY=
+OPENAI_BASE_URL=https://api.openai.com/v1
+
+# Local Ollama. 127.0.0.1, not localhost: Ollama binds IPv4 only and on
+# Windows localhost tries IPv6 first, costing a timeout on every call.
+OLLAMA_BASE_URL=http://127.0.0.1:11434
+
+# Optional: send all data (database, audio, slides) somewhere else.
+# Tests set this so they never touch real recordings.
+RECALL_DATA_DIR=
+```
+
+There is deliberately no `.env.example` to copy. A committed template sitting
+next to the real file is easy to paste a key into by mistake, and that mistake
+is one `git add -A` away from a public repository.
 
 `tasks.summarize.compare_with` lists extra provider/model pairs the Notes tab
 offers beside the default, so the same lecture can be summarised twice and
