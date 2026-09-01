@@ -14,10 +14,12 @@ function formatClock(seconds: number): string {
 
 export default function LectureDetail({
   lecture,
+  initialSeek,
   onChanged,
   onDeleted,
 }: {
   lecture: Lecture
+  initialSeek?: number | null
   onChanged: () => void
   onDeleted: () => void
 }) {
@@ -172,6 +174,11 @@ export default function LectureDetail({
           preload="metadata"
           src={api.audioUrl(lecture.id)}
           onTimeUpdate={(e) => setCurrentTime(e.currentTarget.currentTime)}
+          // currentTime only sticks once duration is known, so a seek arriving
+          // with the lecture (from a tutor citation) has to wait for metadata.
+          onLoadedMetadata={(e) => {
+            if (initialSeek != null) e.currentTarget.currentTime = initialSeek
+          }}
         />
       )}
 

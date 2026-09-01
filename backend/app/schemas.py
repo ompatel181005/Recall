@@ -107,3 +107,38 @@ class SlideDeckRead(BaseModel):
     page_count: int
     has_text: bool
     created_at: datetime
+
+
+class ChatRequest(BaseModel):
+    question: str
+
+
+class Citation(BaseModel):
+    """A retrieved passage behind an answer. `cited` marks the ones the model
+    actually referenced; the rest are kept so the student can see what else was
+    considered."""
+
+    n: int
+    lecture_id: int
+    lecture_title: str
+    source: str
+    start_seconds: float | None = None
+    slide_label: str = ""
+    snippet: str = ""
+    score: float = 0.0
+    cited: bool = False
+
+
+class ChatMessageRead(BaseModel):
+    id: int
+    course_id: int
+    role: str
+    content: str
+    citations: list[Citation] = []
+    created_at: datetime
+
+
+class IndexStatus(BaseModel):
+    chunks: int
+    indexed_lectures: int
+    total_lectures: int

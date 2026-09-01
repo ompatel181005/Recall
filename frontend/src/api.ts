@@ -74,6 +74,33 @@ export interface Note {
   created_at: string
 }
 
+export interface Citation {
+  n: number
+  lecture_id: number
+  lecture_title: string
+  source: string // transcript | slides
+  start_seconds: number | null
+  slide_label: string
+  snippet: string
+  score: number
+  cited: boolean
+}
+
+export interface ChatMessage {
+  id: number
+  course_id: number
+  role: 'user' | 'assistant'
+  content: string
+  citations: Citation[]
+  created_at: string
+}
+
+export interface IndexStatus {
+  chunks: number
+  indexed_lectures: number
+  total_lectures: number
+}
+
 export interface SlideDeck {
   id: number
   lecture_id: number
@@ -184,6 +211,18 @@ export const api = {
   deleteSlideDeck: (id: number) => request<void>(`/slides/${id}`, { method: 'DELETE' }),
   slidePdfUrl: (id: number) => `/api/slides/${id}/file`,
   slideTextUrl: (id: number) => `/api/slides/${id}/text`,
+
+  chatHistory: (courseId: number) => request<ChatMessage[]>(`/courses/${courseId}/chat`),
+  ask: (courseId: number, question: string) =>
+    request<ChatMessage>(`/courses/${courseId}/chat`, {
+      method: 'POST',
+      body: JSON.stringify({ question }),
+    }),
+  clearChat: (courseId: number) =>
+    request<void>(`/courses/${courseId}/chat`, { method: 'DELETE' }),
+  indexStatus: (courseId: number) => request<IndexStatus>(`/courses/${courseId}/index`),
+  reindexCourse: (courseId: number) =>
+    request<{ queued: number }>(`/courses/${courseId}/index`, { method: 'POST' }),
 
   taskProviders: (task: string) => request<ProviderOption[]>(`/tasks/${task}/providers`),
 

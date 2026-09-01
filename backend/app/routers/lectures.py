@@ -13,7 +13,7 @@ from sqlmodel import Session, select
 
 from ..config import settings
 from ..db import get_session
-from ..models import Lecture, LectureStatus, Note, SlideDeck, Transcript
+from ..models import Chunk, Lecture, LectureStatus, Note, SlideDeck, Transcript
 from ..schemas import (
     LectureCreate,
     LectureRead,
@@ -134,7 +134,7 @@ def delete_lecture_records(session: Session, lecture: Lecture) -> None:
     )
     _trash_lecture(lecture, transcript, notes, decks)
 
-    for model in (Transcript, Note, SlideDeck):
+    for model in (Transcript, Note, SlideDeck, Chunk):
         for row in session.exec(select(model).where(model.lecture_id == lecture.id)).all():
             session.delete(row)
     session.delete(lecture)
@@ -295,6 +295,8 @@ async def upload_slides(
     session.add(deck)
     session.commit()
     session.refresh(deck)
+
+    jobs.enqueue_index(lecture_id)  # slide text is searchable too
 
     return SlideDeckRead(
         id=deck.id,

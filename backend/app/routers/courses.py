@@ -7,7 +7,7 @@ from sqlalchemy import func
 from sqlmodel import Session, select
 
 from ..db import get_session
-from ..models import Course, Lecture
+from ..models import ChatMessage, Course, Lecture
 from ..schemas import CourseCreate, CourseRead, CourseUpdate
 from .lectures import delete_lecture_records
 
@@ -76,5 +76,9 @@ def delete_course(course_id: int, session: Session = Depends(get_session)) -> No
     lectures = session.exec(select(Lecture).where(Lecture.course_id == course_id)).all()
     for lecture in lectures:
         delete_lecture_records(session, lecture)
+    for message in session.exec(
+        select(ChatMessage).where(ChatMessage.course_id == course_id)
+    ).all():
+        session.delete(message)
     session.delete(course)
     session.commit()

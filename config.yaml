@@ -22,8 +22,12 @@ tasks:
       - provider: ollama
         model: qwen2.5:7b
   chat:                 # course Q&A tutor (M4)
-    provider: claude
-    model: claude-sonnet-5
+    # Local by default so the tutor works with no API key. qwen2.5:7b answers
+    # well from retrieved sources — the invented-detail problem it has when
+    # summarising from nothing does not bite when it is given the passages.
+    # Point this at gemini or claude once a key is in .env for better answers.
+    provider: ollama
+    model: qwen2.5:7b
   quiz:                 # quizzes & flashcards (M5)
     provider: ollama
     model: qwen2.5:7b

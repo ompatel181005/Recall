@@ -3,7 +3,7 @@
 import httpx
 
 from ...config import settings
-from .base import LLMProvider
+from .base import EmbeddingProvider, LLMProvider
 
 # Ollama defaults num_ctx to 2048 and silently drops whatever doesn't fit —
 # which would quietly throw away most of a lecture transcript. Size the window
@@ -45,6 +45,28 @@ class OllamaProvider(LLMProvider):
         )
         response.raise_for_status()
         return response.json()["message"]["content"]
+
+    def available(self) -> bool:
+        try:
+            return (
+                httpx.get(f"{settings.ollama_base_url}/api/tags", timeout=2.0).status_code
+                == 200
+            )
+        except httpx.HTTPError:
+            return False
+
+
+class OllamaEmbedder(EmbeddingProvider):
+    name = "ollama"
+
+    def embed(self, texts: list[str]) -> list[list[float]]:
+        response = httpx.post(
+            f"{settings.ollama_base_url}/api/embed",
+            json={"model": self.model, "input": texts},
+            timeout=600.0,
+        )
+        response.raise_for_status()
+        return response.json()["embeddings"]
 
     def available(self) -> bool:
         try:

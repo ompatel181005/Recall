@@ -65,17 +65,30 @@ routed through `summarize` is the better choice when accuracy matters.
 conditions, the square-wave coefficients and the Gibbs overshoot figure, none of
 which are anywhere in the audio.
 
-## M4 — Q&A Tutor (RAG)
+## M4 — Q&A Tutor (RAG) ✅ (done)
 
-- Chunk transcripts + slide text; embed via `tasks.embeddings` (local
-  nomic-embed-text by default); store vectors in sqlite-vec (fallback:
-  ChromaDB).
-- Course-scoped chat: retrieve top-k chunks across all lectures of a course,
-  answer with citations (lecture title + timestamp).
-- Chat UI with history per course.
+- Transcripts and slide text are chunked (~450 tokens, one segment of overlap)
+  and embedded via `tasks.embeddings` — local `nomic-embed-text` by default.
+  Indexing happens automatically when a transcription finishes or slides change,
+  so nothing has to be asked for.
+- Vectors live in the `chunk` table as float32 bytes, searched by brute force in
+  numpy. A semester is a few thousand chunks, so a dot product beats adding a
+  vector index, a loadable SQLite extension or a second service. Revisit around
+  100k chunks.
+- Course-scoped chat retrieves the top 8 passages across every lecture and
+  answers from them. Sources are numbered before the model sees them and it
+  cites by number, so a citation can never point at a lecture that does not
+  exist. Citations render as chips that open the lecture at that timestamp.
+- Chat history is stored per course, and the last turns are given back to the
+  model so follow-ups work.
 
-**Accept:** "What did the professor say about X?" returns a correct answer
-citing the right lecture and approximate time, for content 3+ lectures back.
+**Accept:** met — asking about aliasing, the Laplace transform and impulse
+response each cited the correct lecture out of four, and a question about
+material the course never covered was refused rather than answered.
+
+**Known limitation:** retrieval is pure vector similarity. A question phrased in
+words the lecturer never used may miss; hybrid keyword + vector search is the
+fix if that shows up in practice.
 
 ## M5 — Quizzes, Flashcards & Web Search
 

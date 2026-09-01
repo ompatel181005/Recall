@@ -194,3 +194,6 @@ def run_job(job) -> None:
         session.commit()
 
     jobs.finish(job, f"Done — {len(result['segments'])} segments")
+    # A fresh transcript is not searchable until it is chunked and embedded, and
+    # the student should never have to ask for that separately.
+    jobs.enqueue_index(job.lecture_id)

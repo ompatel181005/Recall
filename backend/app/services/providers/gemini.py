@@ -6,7 +6,7 @@ summarisation. Get a key at https://aistudio.google.com/apikey.
 """
 
 from ...config import settings
-from .base import LLMProvider
+from .base import EmbeddingProvider, LLMProvider
 
 # Gemini 2.5 and later spend output tokens on internal reasoning before writing
 # anything, and max_output_tokens caps reasoning + answer together. Asking for
@@ -75,3 +75,20 @@ def _why_empty(response) -> str:
     if feedback and getattr(feedback, "block_reason", None):
         return f"prompt blocked: {feedback.block_reason}"
     return "no candidates returned"
+
+
+class GeminiEmbedder(EmbeddingProvider):
+    """Cloud alternative to the local embedder. Useful if retrieval quality
+    with nomic-embed-text turns out to be the weak link."""
+
+    name = "gemini"
+
+    def embed(self, texts: list[str]) -> list[list[float]]:
+        from google import genai
+
+        client = genai.Client(api_key=settings.gemini_api_key)
+        response = client.models.embed_content(model=self.model, contents=texts)
+        return [list(e.values) for e in response.embeddings]
+
+    def available(self) -> bool:
+        return bool(settings.gemini_api_key)

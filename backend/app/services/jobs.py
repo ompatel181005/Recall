@@ -30,7 +30,7 @@ from sqlmodel import Session
 from ..db import engine
 from ..models import Lecture, LectureStatus
 
-LANE_FOR_KIND = {"transcribe": "gpu", "notes": "llm"}
+LANE_FOR_KIND = {"transcribe": "gpu", "notes": "llm", "index": "llm"}
 
 
 def _now() -> str:
@@ -66,11 +66,13 @@ def _handler_for(kind: str) -> Callable[[Job], None]:
     module back, so binding them at import time would deadlock on whichever
     module Python happened to load first."""
     if not _handlers:
+        from . import index as index_service
         from . import notes as notes_service
         from . import transcribe as transcribe_service
 
         _handlers["transcribe"] = transcribe_service.run_job
         _handlers["notes"] = notes_service.run_job
+        _handlers["index"] = index_service.run_job
     if kind not in _handlers:
         raise KeyError(f"No handler for job kind '{kind}'")
     return _handlers[kind]
@@ -96,23 +98,35 @@ def queue_depth() -> int:
 
 
 def update(job: Job | str, **fields) -> None:
-    key = job if isinstance(job, str) else job.id
     with _jobs_lock:
-        target = _jobs.get(key)
+        if isinstance(job, str):
+            target = _jobs.get(job)
+        else:
+            # A handler that has been superseded by a newer run of the same job
+            # must not write its progress — or its completion — over the new one.
+            target = _jobs.get(job.id)
+            if target is not job:
+                return
         if target:
             for name, value in fields.items():
                 setattr(target, name, value)
 
 
 def enqueue(kind: str, lecture_id: int, **params) -> dict:
-    """Queue a job. Re-queuing one already in flight is a no-op, so a
-    double-click can't run the same work twice."""
+    """Queue a job.
+
+    A job that is merely *queued* absorbs the request: it has not read anything
+    yet, so it will see whatever state exists when it starts. A job that is
+    already *running* must not — it read its inputs before this change happened.
+    Collapsing into it silently drops work, which is how a lecture transcribed
+    while its slides were being indexed ended up permanently unsearchable.
+    """
     _handler_for(kind)  # fail fast on a bad kind, before anything is queued
 
     key = job_id(kind, lecture_id)
     with _jobs_lock:
         existing = _jobs.get(key)
-        if existing and existing.status in ("queued", "running"):
+        if existing and existing.status == "queued":
             return asdict(existing)
         _jobs[key] = Job(id=key, kind=kind, lecture_id=lecture_id, params=params)
 
@@ -184,3 +198,7 @@ def enqueue_transcription(lecture_id: int) -> dict:
 
 def enqueue_notes(lecture_id: int, provider: str = "", model: str = "") -> dict:
     return enqueue("notes", lecture_id, provider=provider, model=model)
+
+
+def enqueue_index(lecture_id: int) -> dict:
+    return enqueue("index", lecture_id)

@@ -15,6 +15,7 @@ from sqlmodel import Session
 from ..config import settings
 from ..db import get_session
 from ..models import SlideDeck
+from ..services import jobs
 
 router = APIRouter(prefix="/api/slides", tags=["slides"])
 
@@ -52,6 +53,8 @@ def delete_deck(deck_id: int, session: Session = Depends(get_session)) -> None:
     """The PDF is deleted outright, unlike a recording: the student still has
     the original file it came from, so it is not irreplaceable."""
     deck = _get(session, deck_id)
+    lecture_id = deck.lecture_id
     (settings.data_dir / deck.pdf_path).unlink(missing_ok=True)
     session.delete(deck)
     session.commit()
+    jobs.enqueue_index(lecture_id)  # drop this deck's passages from the index

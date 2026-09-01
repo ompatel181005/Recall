@@ -1,10 +1,10 @@
 """Resolves a task name (config.yaml `tasks:`) to a configured provider."""
 
 from ...config import settings
-from .base import LLMProvider
+from .base import EmbeddingProvider, LLMProvider
 from .claude import ClaudeProvider
-from .gemini import GeminiProvider
-from .ollama import OllamaProvider
+from .gemini import GeminiEmbedder, GeminiProvider
+from .ollama import OllamaEmbedder, OllamaProvider
 from .openai_compat import OpenAICompatProvider
 
 _PROVIDERS: dict[str, type[LLMProvider]] = {
@@ -12,6 +12,13 @@ _PROVIDERS: dict[str, type[LLMProvider]] = {
     "gemini": GeminiProvider,
     "openai": OpenAICompatProvider,
     "ollama": OllamaProvider,
+}
+
+# Only providers that actually expose an embedding endpoint. Anthropic does
+# not, so routing tasks.embeddings at claude fails loudly rather than oddly.
+_EMBEDDERS: dict[str, type[EmbeddingProvider]] = {
+    "gemini": GeminiEmbedder,
+    "ollama": OllamaEmbedder,
 }
 
 
@@ -70,3 +77,17 @@ def get_provider_for_task(task: str) -> LLMProvider:
 def provider_status() -> dict[str, bool]:
     """Which providers are usable right now — surfaced by /api/health."""
     return {name: cls(model="").available() for name, cls in _PROVIDERS.items()}
+
+
+def get_embedder_for_task(task: str = "embeddings") -> EmbeddingProvider:
+    task_cfg = settings.tasks.get(task)
+    if not task_cfg:
+        raise KeyError(f"Task '{task}' is not defined in config.yaml under tasks:")
+    name = task_cfg.get("provider", "")
+    embedder_cls = _EMBEDDERS.get(name)
+    if not embedder_cls:
+        raise KeyError(
+            f"Provider '{name}' has no embedding support "
+            f"(valid for embeddings: {', '.join(_EMBEDDERS)})"
+        )
+    return embedder_cls(model=task_cfg.get("model", ""))

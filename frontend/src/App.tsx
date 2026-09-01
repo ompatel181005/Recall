@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { api, type Course, type Health, type Lecture } from './api'
 import LectureDetail from './components/LectureDetail'
+import TutorPanel from './components/TutorPanel'
 import Recorder from './components/Recorder'
 import './App.css'
 
@@ -30,6 +31,10 @@ export default function App() {
   const [lectureId, setLectureId] = useState<number | null>(null)
 
   const [confirmDeleteCourse, setConfirmDeleteCourse] = useState(false)
+  const [courseTab, setCourseTab] = useState<'lectures' | 'tutor'>('lectures')
+  // Set when a tutor citation opens a lecture, so the player lands on the
+  // moment the answer came from rather than at the start.
+  const [pendingSeek, setPendingSeek] = useState<number | null>(null)
   const [newTitle, setNewTitle] = useState('')
   const [uploadPct, setUploadPct] = useState<number | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -53,7 +58,14 @@ export default function App() {
   const selectCourse = useCallback((id: number) => {
     setLectureId(null)
     setConfirmDeleteCourse(false)
+    setCourseTab('lectures')
     setCourseId(id)
+  }, [])
+
+  /** Jump from a tutor citation straight to the lecture it came from. */
+  const openLecture = useCallback((id: number, seconds: number | null) => {
+    setPendingSeek(seconds)
+    setLectureId(id)
   }, [])
 
   const refreshLectures = useCallback(async () => {
@@ -224,12 +236,19 @@ export default function App() {
 
         {course && lecture && (
           <>
-            <button className="link" onClick={() => setLectureId(null)}>
+            <button
+              className="link"
+              onClick={() => {
+                setPendingSeek(null)
+                setLectureId(null)
+              }}
+            >
               ← {course.name}
             </button>
             <LectureDetail
               key={lecture.id}
               lecture={lecture}
+              initialSeek={pendingSeek}
               onChanged={onLectureChanged}
               onDeleted={onLectureDeleted}
             />
@@ -258,6 +277,27 @@ export default function App() {
               )}
             </div>
 
+            <nav className="tabs">
+              <button
+                className={`tab ${courseTab === 'lectures' ? 'selected' : ''}`}
+                onClick={() => setCourseTab('lectures')}
+              >
+                Lectures
+              </button>
+              <button
+                className={`tab ${courseTab === 'tutor' ? 'selected' : ''}`}
+                onClick={() => setCourseTab('tutor')}
+              >
+                Tutor
+              </button>
+            </nav>
+
+            {courseTab === 'tutor' && (
+              <TutorPanel courseId={course.id} onOpenLecture={openLecture} />
+            )}
+
+            {courseTab === 'lectures' && (
+              <>
             <section className="capture">
               <label className="field">
                 <span>Lecture title</span>
@@ -298,7 +338,7 @@ export default function App() {
             <ul className="lecture-list">
               {lectures.map((l) => (
                 <li key={l.id}>
-                  <button className="lecture-item" onClick={() => setLectureId(l.id)}>
+                  <button className="lecture-item" onClick={() => openLecture(l.id, null)}>
                     <span className="lecture-title">{l.title}</span>
                     <span className={`badge ${l.status}`}>{l.status}</span>
                     {l.duration_seconds != null && (
@@ -308,6 +348,8 @@ export default function App() {
                 </li>
               ))}
             </ul>
+              </>
+            )}
           </>
         )}
       </main>

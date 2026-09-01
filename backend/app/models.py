@@ -66,3 +66,38 @@ class Note(SQLModel, table=True):
     content_md: str = ""
     provider_used: str = ""
     created_at: datetime = Field(default_factory=_utcnow)
+
+
+class Chunk(SQLModel, table=True):
+    """A retrievable slice of a lecture, with its embedding.
+
+    Vectors are stored as raw float32 bytes and searched by brute force in
+    numpy (see services/index.py). A semester is a few thousand chunks — a
+    dot product over that is sub-millisecond, so a vector index would add a
+    dependency and buy nothing until roughly 100k chunks.
+    """
+
+    id: int | None = Field(default=None, primary_key=True)
+    # Denormalised from lecture so course-scoped retrieval is a single query.
+    course_id: int = Field(foreign_key="course.id", index=True)
+    lecture_id: int = Field(foreign_key="lecture.id", index=True)
+    source: str = "transcript"    # transcript | slides
+    ordinal: int = 0              # position within the lecture, for stable ordering
+    start_seconds: float | None = None   # transcript chunks: where to seek back to
+    end_seconds: float | None = None
+    slide_label: str = ""         # slides chunks: e.g. "Slides 3-5"
+    text: str = ""
+    embedding: bytes = b""        # float32, L2-normalised at write time
+    model_used: str = ""
+    created_at: datetime = Field(default_factory=_utcnow)
+
+
+class ChatMessage(SQLModel, table=True):
+    """One turn of the course tutor conversation."""
+
+    id: int | None = Field(default=None, primary_key=True)
+    course_id: int = Field(foreign_key="course.id", index=True)
+    role: str = "user"            # user | assistant
+    content: str = ""
+    citations_json: str = "[]"    # assistant turns: the sources behind the answer
+    created_at: datetime = Field(default_factory=_utcnow)

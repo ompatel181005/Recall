@@ -82,6 +82,14 @@ gitignored.
   and the slide text if any, goes to whichever provider `tasks.summarize`
   names. Lectures over ~12k tokens are summarised section by section and
   merged. Empty sections the model emits anyway are stripped afterwards.
+- **Retrieval** (`services/index.py`, M4): transcripts and slide text are
+  chunked and embedded through `tasks.embeddings`, stored as float32 bytes on
+  the `chunk` table and searched by brute-force dot product in numpy. No
+  vector index: a semester is a few thousand chunks. Indexing is triggered
+  automatically by transcription finishing and by slides changing.
+- **Tutor** (`services/tutor.py`, M4): numbers the retrieved passages, asks
+  the model to cite by number, then maps numbers back to lecture and
+  timestamp — so a citation cannot name a lecture that does not exist.
 - **Slides** (`services/slides.py`, M3): pypdf extracts per-page text into one
   string with `[Slide N]` markers, so the summariser can cite a slide number
   and no schema change is needed. Image-only decks yield nothing and are
@@ -113,7 +121,12 @@ gitignored.
   upload) and list a lecture's decks (M3).
 - `GET /api/slides/{id}/file` (inline PDF), `GET /api/slides/{id}/text`
   (what the summariser sees), `DELETE /api/slides/{id}` (M3).
-- `/api/courses/{id}/chat` (M4), quiz/flashcard endpoints (M5)
+- `GET|POST|DELETE /api/courses/{id}/chat` — tutor history, ask a question,
+  clear the conversation (M4).
+- `GET|POST /api/courses/{id}/index` — how much of a course is searchable,
+  and re-embed it (needed after changing `tasks.embeddings`, since vectors
+  from different models are not comparable) (M4).
+- quiz/flashcard endpoints (M5)
 
 ## Quality bars
 

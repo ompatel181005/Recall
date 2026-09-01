@@ -83,6 +83,12 @@ default.
 - Transcription runs one lecture at a time on a single background worker; extra
   lectures queue. Summarisation runs on its own worker alongside it.
   `/api/lectures/{id}/jobs` reports progress for both.
+- The Tutor tab answers from a whole course at once. Lectures become
+  searchable automatically once transcribed; the header says how many are
+  indexed. Answers cite the lecture and timestamp they came from, and the
+  citations are clickable.
+- Changing `tasks.embeddings` invalidates every stored vector — vectors from
+  different models are not comparable. Hit Re-index on each course after.
 - Attaching the lecturer's slide PDF measurably improves notes: it fixes
   technical terms speech recognition mangles, and recovers material that was
   shown rather than said. Slide-sourced points are marked "(from slides)".
