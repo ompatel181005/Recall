@@ -54,6 +54,25 @@ Browser recording needs a secure context. `localhost` counts; reaching the dev
 server over LAN by IP does not, so mic capture from a phone needs HTTPS or
 Chrome's "Insecure origins treated as secure" flag.
 
+## Access and security
+
+**There is no authentication.** Anyone who can reach the ports can read every
+recording, transcript and note. That is a deliberate trade for a single-user
+local app, but it means where you bind matters:
+
+- The backend binds `127.0.0.1` unless you pass `--host`, so it is not reachable
+  from other machines on its own.
+- The Vite dev server binds **all interfaces** (`host: true` in
+  `vite.config.ts`) so you can open the app from your phone. Anyone on the same
+  Wi-Fi can then reach it too, and it proxies straight through to the backend.
+
+On your home network that is usually fine. On university or public Wi-Fi it
+means classmates can browse your lectures. To keep it to this machine only, set
+`host: false` in `vite.config.ts` or run `npm run dev -- --host 127.0.0.1`.
+
+Recording lectures may also need your lecturer's or institution's permission —
+that is on you, not the software.
+
 ## Configuration
 
 `config.yaml` routes every AI task to a provider and model — switch any task

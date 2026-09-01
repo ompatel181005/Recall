@@ -38,6 +38,6 @@ tasks:
 storage:
   data_dir: ../data     # relative to backend/; audio, slides, sqlite db live here
 
-server:
-  host: 0.0.0.0         # 0.0.0.0 so your phone on the same Wi-Fi can reach it
-  port: 8000
+# Network binding is NOT configured here — it is decided by how you launch
+# uvicorn and vite, so a value in this file could not enforce anything. See
+# "Access and security" in README.md.

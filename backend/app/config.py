@@ -31,10 +31,6 @@ class Settings:
         self.data_dir.mkdir(parents=True, exist_ok=True)
         self.db_path = self.data_dir / "transcribeai.db"
 
-        server = self._cfg.get("server", {})
-        self.host: str = server.get("host", "127.0.0.1")
-        self.port: int = int(server.get("port", 8000))
-
         self.transcription: dict[str, Any] = self._cfg.get("transcription", {})
         # values are provider/model strings plus an optional compare_with list
         self.tasks: dict[str, dict[str, Any]] = self._cfg.get("tasks", {})
