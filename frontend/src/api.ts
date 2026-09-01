@@ -49,11 +49,37 @@ export interface Transcript {
 }
 
 export interface Job {
-  lecture_id: number
+  id?: string
+  kind?: string
+  lecture_id?: number
   status: 'none' | 'queued' | 'running' | 'done' | 'failed'
   progress: number
   message: string
   error: string
+  result_id?: number | null
+}
+
+/** One entry per job kind — a single poll covers transcription and notes. */
+export interface LectureJobs {
+  transcribe: Job
+  notes: Job
+}
+
+export interface Note {
+  id: number
+  lecture_id: number
+  kind: string
+  content_md: string
+  provider_used: string
+  created_at: string
+}
+
+/** A provider/model this task can run on, from config.yaml. */
+export interface ProviderOption {
+  provider: string
+  model: string
+  is_default: boolean
+  available: boolean
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
@@ -126,8 +152,20 @@ export const api = {
   uploadAudio: (id: number, file: Blob, filename: string, onProgress?: (f: number) => void) =>
     upload(`/lectures/${id}/audio`, file, filename, onProgress),
   transcribe: (id: number) => request<Job>(`/lectures/${id}/transcribe`, { method: 'POST' }),
-  job: (id: number) => request<Job>(`/lectures/${id}/job`),
+  jobs: (id: number) => request<LectureJobs>(`/lectures/${id}/jobs`),
   transcript: (id: number) => request<Transcript>(`/lectures/${id}/transcript`),
+
+  listNotes: (lectureId: number) => request<Note[]>(`/lectures/${lectureId}/notes`),
+  generateNotes: (lectureId: number, provider = '', model = '') =>
+    request<Job>(`/lectures/${lectureId}/notes`, {
+      method: 'POST',
+      body: JSON.stringify({ provider, model }),
+    }),
+  updateNote: (id: number, content_md: string) =>
+    request<Note>(`/notes/${id}`, { method: 'PATCH', body: JSON.stringify({ content_md }) }),
+  deleteNote: (id: number) => request<void>(`/notes/${id}`, { method: 'DELETE' }),
+
+  taskProviders: (task: string) => request<ProviderOption[]>(`/tasks/${task}/providers`),
 
   audioUrl: (id: number) => `/api/lectures/${id}/audio`,
   transcriptTextUrl: (id: number, timestamps: boolean) =>

@@ -71,10 +71,16 @@ gitignored.
   both mixed through a `WebAudio` graph. Existing recordings can be uploaded
   instead; ffmpeg extracts the audio track from video and produces a seekable
   MP3 for playback (browser WebM carries no duration header).
-- **Background jobs** (`services/jobs.py`, M1): one daemon worker thread drains
-  a queue so request handlers never block on the GPU and only one Whisper model
-  is resident at a time. Progress is in-memory; lecture status and transcripts
-  are in SQLite, so a restart costs only the percentage readout.
+- **Background jobs** (`services/jobs.py`, M1): daemon workers drain queues so
+  request handlers never block on a model. Two lanes — `gpu` (transcription,
+  serialised so only one Whisper model is resident) and `llm` (summarisation),
+  so a note request doesn't sit behind a long transcription. Progress is
+  in-memory; durable state is in SQLite, so a restart costs only the
+  percentage readout.
+- **Study notes** (`services/notes.py`, M2): a transcript plus its timestamps
+  goes to whichever provider `tasks.summarize` names. Lectures over ~12k
+  tokens are summarised section by section and merged. Empty sections the
+  model emits anyway are stripped deterministically afterwards.
 
 ## API surface (grows per milestone)
 
@@ -92,8 +98,13 @@ gitignored.
   run and poll its progress (M1).
 - `GET  /api/lectures/{id}/transcript` (JSON segments) and
   `/transcript.txt?timestamps=` (plain-text export) (M1).
-- `POST /api/lectures/{id}/notes` (M2), `/slides` (M3), `/api/courses/{id}/chat`
-  (M4), quiz/flashcard endpoints (M5)
+- `POST /api/lectures/{id}/notes` — queue summarisation; an optional
+  `{provider, model}` body overrides config.yaml for a comparison run (M2).
+- `GET  /api/lectures/{id}/notes`, `GET|PATCH|DELETE /api/notes/{id}` — read,
+  edit and remove stored notes (M2).
+- `GET  /api/tasks/{task}/providers` — the configured provider plus its
+  `compare_with` alternatives, each flagged available or not (M2).
+- `/slides` (M3), `/api/courses/{id}/chat` (M4), quiz/flashcard endpoints (M5)
 
 ## Quality bars
 

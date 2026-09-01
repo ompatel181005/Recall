@@ -448,6 +448,174 @@ select:focus {
   padding-top: 14px;
 }
 
+/* ---- tabs ---- */
+
+.tabs {
+  display: flex;
+  gap: 4px;
+  border-bottom: 1px solid var(--border);
+}
+
+button.tab {
+  border: none;
+  background: none;
+  border-radius: 0;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  padding: 8px 14px;
+}
+
+button.tab.selected {
+  color: var(--text-h);
+  border-bottom-color: var(--accent);
+}
+
+.tab-dot {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  margin-left: 7px;
+  border-radius: 50%;
+  background: var(--accent);
+  animation: pulse 1.4s ease-in-out infinite;
+}
+
+/* ---- notes ---- */
+
+.notes-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.notes-controls {
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.notes-controls .field {
+  flex: 1;
+  min-width: 220px;
+}
+
+.note-runs {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+button.chip {
+  font-size: 12px;
+  padding: 4px 10px;
+  border-radius: 20px;
+}
+
+button.chip.selected {
+  border-color: var(--accent);
+  color: var(--text-h);
+}
+
+.note-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.note-editor {
+  font: inherit;
+  font-family: ui-monospace, Consolas, monospace;
+  font-size: 13px;
+  line-height: 1.6;
+  min-height: 460px;
+  width: 100%;
+  padding: 12px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text-h);
+  box-sizing: border-box;
+  resize: vertical;
+}
+
+/* ---- rendered markdown ---- */
+
+.markdown {
+  line-height: 1.65;
+}
+
+.markdown h2 {
+  font-size: 17px;
+  margin: 26px 0 8px;
+  padding-bottom: 5px;
+  border-bottom: 1px solid var(--border);
+}
+
+.markdown h3 {
+  font-size: 15px;
+  color: var(--text-h);
+  margin: 18px 0 6px;
+}
+
+.markdown ul,
+.markdown ol {
+  padding-left: 22px;
+  margin: 6px 0;
+}
+
+.markdown li {
+  margin: 4px 0;
+}
+
+.markdown strong {
+  color: var(--text-h);
+}
+
+.markdown blockquote {
+  margin: 10px 0;
+  padding-left: 12px;
+  border-left: 3px solid var(--border);
+  opacity: 0.85;
+}
+
+.markdown table {
+  border-collapse: collapse;
+  display: block;
+  overflow-x: auto;
+}
+
+.markdown th,
+.markdown td {
+  border: 1px solid var(--border);
+  padding: 5px 9px;
+  text-align: left;
+}
+
+.markdown pre {
+  background: var(--code-bg);
+  padding: 10px 12px;
+  border-radius: 6px;
+  overflow-x: auto;
+}
+
+/* Timestamps rewritten into seek buttons by NotesPanel. */
+button.stamp-link {
+  font-family: ui-monospace, Consolas, monospace;
+  font-size: 12px;
+  border: none;
+  background: var(--code-bg);
+  color: var(--accent);
+  padding: 1px 6px;
+  border-radius: 4px;
+}
+
+button.stamp-link:hover {
+  color: var(--text-h);
+}
+
 /* ---- mobile ---- */
 
 @media (max-width: 700px) {

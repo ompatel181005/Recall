@@ -25,17 +25,28 @@ The app became genuinely useful: record a lecture, get a transcript.
 **Accept:** met — a lecture recording becomes a readable, timestamped
 transcript without touching a terminal.
 
-## M2 — Summaries & Notes
+## M2 — Summaries & Notes ✅ (done)
 
-- "Generate notes" on a ready lecture → structured markdown (topics in order,
-  key concepts, definitions, open questions) via the provider layer.
-- Per-task routing proven: same lecture summarized via Ollama and via Claude,
-  compared side by side; pick defaults in config.yaml.
-- Notes editable and stored; regenerate on demand.
+- "Generate notes" on a ready lecture produces structured markdown (overview,
+  topics in order, definitions, formulas, worked examples, exam hints, gaps)
+  through the provider layer. Notes carry [MM:SS] timestamps that are clickable
+  in the UI and seek the audio.
+- Per-task routing proven: `tasks.summarize` picks the default and
+  `tasks.summarize.compare_with` lists alternatives the UI offers, so the same
+  lecture can be summarised by two models and compared. Each run is stored, so
+  regenerating adds a run rather than overwriting one.
+- Notes are editable and stored; the student's edit wins over the model draft.
+- Long lectures (over ~12k tokens, roughly 80 minutes) are summarised section by
+  section and merged, so nothing is silently truncated.
 
-**Accept:** one click on a transcribed lecture yields notes good enough to
-revise from; switching `tasks.summarize.provider` in config.yaml changes the
-engine with no code edits.
+**Accept:** met — one click yields notes to revise from, and switching
+`tasks.summarize.provider` in config.yaml changes the engine with no code edits.
+
+**Known limitation:** qwen2.5:7b still occasionally supplies a standard textbook
+definition for a topic the lecturer only named. Prompt work cut this down a lot
+(see the worked example in `services/notes.py`) but did not eliminate it. Treat
+local-model notes as a draft to check against the transcript; a frontier model
+routed through `summarize` is the better choice when accuracy matters.
 
 ## M3 — Slides
 

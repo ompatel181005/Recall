@@ -1,48 +1,88 @@
-"""Background job runner for GPU work.
+"""Background job runner for slow work (GPU transcription, LLM calls).
 
-Request handlers must never block on transcription, and the 8 GB GPU can only
-hold one Whisper model anyway — so everything funnels through a single daemon
-worker thread that processes one lecture at a time. Job state lives in memory;
-durable state (lecture status, the transcript itself) goes to SQLite, so a
-restart loses only progress percentages.
+Request handlers must never block on a model, so everything slow funnels
+through here. Jobs are split into two lanes with one worker each:
+
+  gpu — faster-whisper transcription. Serialised because the 8 GB card holds
+        one Whisper model at a time.
+  llm — summarisation and other provider calls. Kept separate so a note
+        request doesn't sit behind a 40-minute transcription.
+
+Note that a *local* LLM (Ollama) also uses the GPU, so routing `summarize` to
+Ollama can contend with transcription for VRAM. Ollama manages its own memory
+and will spill to CPU rather than fail, so this degrades rather than breaks.
+
+Job state lives in memory; durable state (lecture status, transcripts, notes)
+goes to SQLite, so a restart loses only progress percentages.
 """
 
 from __future__ import annotations
 
-import json
 import queue
 import threading
+from collections.abc import Callable
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
+from typing import Any
 
-from sqlmodel import Session, select
+from sqlmodel import Session
 
 from ..db import engine
-from ..models import Lecture, LectureStatus, Transcript
-from .transcribe import transcribe_audio
+from ..models import Lecture, LectureStatus
+
+LANE_FOR_KIND = {"transcribe": "gpu", "notes": "llm"}
+
+
+def _now() -> str:
+    return datetime.now(timezone.utc).isoformat()
 
 
 @dataclass
 class Job:
+    id: str                       # "<kind>:<lecture_id>" — one live job per pair
+    kind: str
     lecture_id: int
     status: str = "queued"        # queued | running | done | failed
     progress: float = 0.0         # 0..1
     message: str = "Queued"
     error: str = ""
-    queued_at: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+    result_id: int | None = None  # e.g. the Note row a notes job produced
+    params: dict[str, Any] = field(default_factory=dict)
+    queued_at: str = field(default_factory=_now)
     finished_at: str = ""
 
 
-_jobs: dict[int, Job] = {}
+_jobs: dict[str, Job] = {}
 _jobs_lock = threading.Lock()
-_queue: queue.Queue[int] = queue.Queue()
-_worker: threading.Thread | None = None
+_queues: dict[str, queue.Queue[str]] = {}
+_workers: dict[str, threading.Thread] = {}
 _worker_lock = threading.Lock()
 
+_handlers: dict[str, Callable[[Job], None]] = {}
 
-def get_job(lecture_id: int) -> dict | None:
+
+def _handler_for(kind: str) -> Callable[[Job], None]:
+    """Resolved on first use, not at import. The services below import this
+    module back, so binding them at import time would deadlock on whichever
+    module Python happened to load first."""
+    if not _handlers:
+        from . import notes as notes_service
+        from . import transcribe as transcribe_service
+
+        _handlers["transcribe"] = transcribe_service.run_job
+        _handlers["notes"] = notes_service.run_job
+    if kind not in _handlers:
+        raise KeyError(f"No handler for job kind '{kind}'")
+    return _handlers[kind]
+
+
+def job_id(kind: str, lecture_id: int) -> str:
+    return f"{kind}:{lecture_id}"
+
+
+def get_job(kind: str, lecture_id: int) -> dict | None:
     with _jobs_lock:
-        job = _jobs.get(lecture_id)
+        job = _jobs.get(job_id(kind, lecture_id))
         return asdict(job) if job else None
 
 
@@ -52,117 +92,95 @@ def all_jobs() -> list[dict]:
 
 
 def queue_depth() -> int:
-    return _queue.qsize()
+    return sum(q.qsize() for q in _queues.values())
 
 
-def _update(lecture_id: int, **fields) -> None:
+def update(job: Job | str, **fields) -> None:
+    key = job if isinstance(job, str) else job.id
     with _jobs_lock:
-        job = _jobs.get(lecture_id)
-        if job:
-            for key, value in fields.items():
-                setattr(job, key, value)
+        target = _jobs.get(key)
+        if target:
+            for name, value in fields.items():
+                setattr(target, name, value)
+
+
+def enqueue(kind: str, lecture_id: int, **params) -> dict:
+    """Queue a job. Re-queuing one already in flight is a no-op, so a
+    double-click can't run the same work twice."""
+    _handler_for(kind)  # fail fast on a bad kind, before anything is queued
+
+    key = job_id(kind, lecture_id)
+    with _jobs_lock:
+        existing = _jobs.get(key)
+        if existing and existing.status in ("queued", "running"):
+            return asdict(existing)
+        _jobs[key] = Job(id=key, kind=kind, lecture_id=lecture_id, params=params)
+
+    if kind == "transcribe":
+        _set_lecture_status(lecture_id, LectureStatus.transcribing)
+
+    lane = LANE_FOR_KIND.get(kind, "llm")
+    _ensure_worker(lane).put(key)
+    return get_job(kind, lecture_id)  # type: ignore[return-value]
+
+
+def _ensure_worker(lane: str) -> queue.Queue[str]:
+    with _worker_lock:
+        if lane not in _queues:
+            _queues[lane] = queue.Queue()
+        worker = _workers.get(lane)
+        if worker is None or not worker.is_alive():
+            worker = threading.Thread(
+                target=_run_worker, args=(lane,), name=f"{lane}-worker", daemon=True
+            )
+            worker.start()
+            _workers[lane] = worker
+        return _queues[lane]
+
+
+def _run_worker(lane: str) -> None:
+    work = _queues[lane]
+    while True:
+        key = work.get()
+        try:
+            with _jobs_lock:
+                job = _jobs.get(key)
+            if job is None:
+                continue
+            update(key, status="running", message="Starting…")
+            _handler_for(job.kind)(job)
+        except Exception as exc:  # one bad job must not kill the lane
+            fail(key, f"{type(exc).__name__}: {exc}")
+        finally:
+            work.task_done()
+
+
+def finish(job: Job | str, message: str, result_id: int | None = None) -> None:
+    update(job, status="done", progress=1.0, message=message,
+           result_id=result_id, finished_at=_now())
+
+
+def fail(job: Job | str, error: str) -> None:
+    key = job if isinstance(job, str) else job.id
+    update(key, status="failed", error=error, message="Failed", finished_at=_now())
+    with _jobs_lock:
+        target = _jobs.get(key)
+    if target and target.kind == "transcribe":
+        _set_lecture_status(target.lecture_id, LectureStatus.failed)
+
+
+def _set_lecture_status(lecture_id: int, status: LectureStatus) -> None:
+    with Session(engine) as session:
+        lecture = session.get(Lecture, lecture_id)
+        if lecture:
+            lecture.status = status
+            session.add(lecture)
+            session.commit()
 
 
 def enqueue_transcription(lecture_id: int) -> dict:
-    """Queue a lecture for transcription. Re-queuing one already in flight is a
-    no-op so a double-click can't run the GPU twice on the same file."""
-    with _jobs_lock:
-        existing = _jobs.get(lecture_id)
-        if existing and existing.status in ("queued", "running"):
-            return asdict(existing)
-        _jobs[lecture_id] = Job(lecture_id=lecture_id)
-
-    with Session(engine) as session:
-        lecture = session.get(Lecture, lecture_id)
-        if lecture:
-            lecture.status = LectureStatus.transcribing
-            session.add(lecture)
-            session.commit()
-
-    _ensure_worker()
-    _queue.put(lecture_id)
-    return get_job(lecture_id)  # type: ignore[return-value]
+    return enqueue("transcribe", lecture_id)
 
 
-def _ensure_worker() -> None:
-    global _worker
-    with _worker_lock:
-        if _worker is None or not _worker.is_alive():
-            _worker = threading.Thread(target=_run_worker, name="transcribe-worker", daemon=True)
-            _worker.start()
-
-
-def _run_worker() -> None:
-    while True:
-        lecture_id = _queue.get()
-        try:
-            _process(lecture_id)
-        except Exception as exc:  # a bad file must not kill the worker
-            _fail(lecture_id, f"{type(exc).__name__}: {exc}")
-        finally:
-            _queue.task_done()
-
-
-def _process(lecture_id: int) -> None:
-    from ..config import settings
-
-    with Session(engine) as session:
-        lecture = session.get(Lecture, lecture_id)
-        if lecture is None:
-            _fail(lecture_id, "Lecture no longer exists")
-            return
-        source = settings.data_dir / lecture.audio_path if lecture.audio_path else None
-
-    if source is None or not source.exists():
-        _fail(lecture_id, "No audio file attached to this lecture")
-        return
-
-    _update(lecture_id, status="running", message="Starting…")
-
-    def on_progress(fraction: float, message: str) -> None:
-        _update(lecture_id, progress=fraction, message=message)
-
-    result = transcribe_audio(source, progress_cb=on_progress)
-
-    with Session(engine) as session:
-        existing = session.exec(
-            select(Transcript).where(Transcript.lecture_id == lecture_id)
-        ).first()
-        transcript = existing or Transcript(lecture_id=lecture_id)
-        transcript.full_text = result["full_text"]
-        transcript.segments_json = json.dumps(result["segments"])
-        transcript.language = result["language"]
-        transcript.model_used = result["model_used"]
-        session.add(transcript)
-
-        lecture = session.get(Lecture, lecture_id)
-        if lecture:
-            lecture.status = LectureStatus.ready
-            if not lecture.duration_seconds and result.get("duration"):
-                lecture.duration_seconds = result["duration"]
-            session.add(lecture)
-        session.commit()
-
-    _update(
-        lecture_id,
-        status="done",
-        progress=1.0,
-        message=f"Done — {len(result['segments'])} segments",
-        finished_at=datetime.now(timezone.utc).isoformat(),
-    )
-
-
-def _fail(lecture_id: int, error: str) -> None:
-    _update(
-        lecture_id,
-        status="failed",
-        error=error,
-        message="Failed",
-        finished_at=datetime.now(timezone.utc).isoformat(),
-    )
-    with Session(engine) as session:
-        lecture = session.get(Lecture, lecture_id)
-        if lecture:
-            lecture.status = LectureStatus.failed
-            session.add(lecture)
-            session.commit()
+def enqueue_notes(lecture_id: int, provider: str = "", model: str = "") -> dict:
+    return enqueue("notes", lecture_id, provider=provider, model=model)

@@ -16,6 +16,9 @@ tasks:
   summarize:            # per-lecture structured notes (M2)
     provider: claude
     model: claude-sonnet-5
+    compare_with:       # offered in the UI beside the default, to compare quality
+      - provider: ollama
+        model: qwen2.5:7b
   chat:                 # course Q&A tutor (M4)
     provider: claude
     model: claude-sonnet-5

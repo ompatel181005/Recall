@@ -146,3 +146,51 @@ def transcribe_audio(
         "duration": total,
         "model_used": f"{name} ({device})",
     }
+
+
+def run_job(job) -> None:
+    """Job handler: transcribe a lecture's audio and store the transcript."""
+    import json
+
+    from sqlmodel import Session, select
+
+    from ..db import engine
+    from ..models import Lecture, LectureStatus, Transcript
+    from . import jobs
+
+    with Session(engine) as session:
+        lecture = session.get(Lecture, job.lecture_id)
+        if lecture is None:
+            jobs.fail(job, "Lecture no longer exists")
+            return
+        source = settings.data_dir / lecture.audio_path if lecture.audio_path else None
+
+    if source is None or not source.exists():
+        jobs.fail(job, "No audio file attached to this lecture")
+        return
+
+    def on_progress(fraction: float, message: str) -> None:
+        jobs.update(job, progress=fraction, message=message)
+
+    result = transcribe_audio(source, progress_cb=on_progress)
+
+    with Session(engine) as session:
+        existing = session.exec(
+            select(Transcript).where(Transcript.lecture_id == job.lecture_id)
+        ).first()
+        transcript = existing or Transcript(lecture_id=job.lecture_id)
+        transcript.full_text = result["full_text"]
+        transcript.segments_json = json.dumps(result["segments"])
+        transcript.language = result["language"]
+        transcript.model_used = result["model_used"]
+        session.add(transcript)
+
+        lecture = session.get(Lecture, job.lecture_id)
+        if lecture:
+            lecture.status = LectureStatus.ready
+            if not lecture.duration_seconds and result.get("duration"):
+                lecture.duration_seconds = result["duration"]
+            session.add(lecture)
+        session.commit()
+
+    jobs.finish(job, f"Done — {len(result['segments'])} segments")

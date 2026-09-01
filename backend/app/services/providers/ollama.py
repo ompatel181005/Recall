@@ -5,6 +5,13 @@ import httpx
 from ...config import settings
 from .base import LLMProvider
 
+# Ollama defaults num_ctx to 2048 and silently drops whatever doesn't fit —
+# which would quietly throw away most of a lecture transcript. Size the window
+# to the actual prompt instead, within what a laptop GPU can hold.
+MIN_CONTEXT = 4_096
+MAX_CONTEXT = 32_768
+CHARS_PER_TOKEN = 4
+
 
 class OllamaProvider(LLMProvider):
     name = "ollama"
@@ -17,15 +24,24 @@ class OllamaProvider(LLMProvider):
         temperature: float = 0.7,
     ) -> str:
         full_messages = ([{"role": "system", "content": system}] if system else []) + messages
+
+        prompt_chars = len(system) + sum(len(m["content"]) for m in messages)
+        needed = prompt_chars // CHARS_PER_TOKEN + max_tokens + 512  # + a margin
+        num_ctx = max(MIN_CONTEXT, min(needed, MAX_CONTEXT))
+
         response = httpx.post(
             f"{settings.ollama_base_url}/api/chat",
             json={
                 "model": self.model,
                 "messages": full_messages,
                 "stream": False,
-                "options": {"num_predict": max_tokens, "temperature": temperature},
+                "options": {
+                    "num_predict": max_tokens,
+                    "temperature": temperature,
+                    "num_ctx": num_ctx,
+                },
             },
-            timeout=300.0,
+            timeout=600.0,  # a 7B model summarising an hour of speech is slow
         )
         response.raise_for_status()
         return response.json()["message"]["content"]

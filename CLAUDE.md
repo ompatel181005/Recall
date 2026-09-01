@@ -5,7 +5,7 @@ runs locally on a Windows 11 laptop (RTX 4060 8GB VRAM). Read
 [docs/SPEC.md](docs/SPEC.md) for the full product spec and
 [docs/ROADMAP.md](docs/ROADMAP.md) for milestones before building features.
 
-**Current status: M1 (record & transcribe) done. Next milestone: M2 — Summaries & Notes.**
+**Current status: M2 (summaries & notes) done. Next milestone: M3 — Slides.**
 
 ## Stack
 
@@ -46,6 +46,8 @@ runs locally on a Windows 11 laptop (RTX 4060 8GB VRAM). Read
 
 1. Re-read its section in docs/ROADMAP.md; meet the **Accept** criterion.
 2. Update the "Current status" line above when a milestone completes.
-3. Heavy work (transcription, embedding) must run as background jobs — never
-   block a request handler on the GPU. `services/jobs.py` already owns the
-   single worker thread; add new job kinds there rather than spawning threads.
+3. Heavy work (transcription, summarisation, embedding) must run as background
+   jobs — never block a request handler on a model. `services/jobs.py` owns
+   the workers: add a new kind to `LANE_FOR_KIND` and a handler in
+   `_handler_for`, rather than spawning threads. The `gpu` lane is
+   serialised; the `llm` lane runs alongside it.

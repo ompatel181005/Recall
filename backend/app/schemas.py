@@ -67,3 +67,31 @@ class TranscriptRead(BaseModel):
     language: str
     model_used: str
     created_at: datetime
+
+
+class NoteRead(BaseModel):
+    id: int
+    lecture_id: int
+    kind: str
+    content_md: str
+    provider_used: str
+    created_at: datetime
+
+
+class NoteUpdate(BaseModel):
+    content_md: str
+
+
+class NotesRequest(BaseModel):
+    """Optional override so the same lecture can be summarised by a second
+    provider and the two compared. Empty means "use config.yaml"."""
+
+    provider: str = ""
+    model: str = ""
+
+
+class ProviderOption(BaseModel):
+    provider: str
+    model: str
+    is_default: bool
+    available: bool

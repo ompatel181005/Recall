@@ -28,12 +28,15 @@ class Settings:
         self.port: int = int(server.get("port", 8000))
 
         self.transcription: dict[str, Any] = self._cfg.get("transcription", {})
-        self.tasks: dict[str, dict[str, str]] = self._cfg.get("tasks", {})
+        # values are provider/model strings plus an optional compare_with list
+        self.tasks: dict[str, dict[str, Any]] = self._cfg.get("tasks", {})
 
         self.anthropic_api_key = os.getenv("ANTHROPIC_API_KEY", "")
         self.openai_api_key = os.getenv("OPENAI_API_KEY", "")
         self.openai_base_url = os.getenv("OPENAI_BASE_URL", "https://api.openai.com/v1")
-        self.ollama_base_url = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
+        # 127.0.0.1, not localhost: Ollama binds IPv4 only, and localhost resolves
+        # to ::1 first on Windows, which costs a connection timeout per call.
+        self.ollama_base_url = os.getenv("OLLAMA_BASE_URL", "http://127.0.0.1:11434")
 
 
 settings = Settings()

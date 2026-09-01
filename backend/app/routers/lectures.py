@@ -13,7 +13,14 @@ from sqlmodel import Session, select
 from ..config import settings
 from ..db import get_session
 from ..models import Lecture, LectureStatus, Note, SlideDeck, Transcript
-from ..schemas import LectureCreate, LectureRead, LectureUpdate, TranscriptRead
+from ..schemas import (
+    LectureCreate,
+    LectureRead,
+    LectureUpdate,
+    NoteRead,
+    NotesRequest,
+    TranscriptRead,
+)
 from ..services import jobs, media
 
 router = APIRouter(prefix="/api/lectures", tags=["lectures"])
@@ -191,10 +198,48 @@ def start_transcription(lecture_id: int, session: Session = Depends(get_session)
     return jobs.enqueue_transcription(lecture_id)
 
 
-@router.get("/{lecture_id}/job")
-def transcription_job(lecture_id: int) -> dict:
-    """Progress for the in-flight (or last) transcription of this lecture."""
-    return jobs.get_job(lecture_id) or {"lecture_id": lecture_id, "status": "none"}
+@router.get("/{lecture_id}/jobs")
+def lecture_jobs(lecture_id: int) -> dict:
+    """Progress for this lecture's background work, one poll for every kind."""
+    return {
+        kind: jobs.get_job(kind, lecture_id) or {"status": "none"}
+        for kind in jobs.LANE_FOR_KIND
+    }
+
+
+@router.post("/{lecture_id}/notes")
+def generate_notes(
+    lecture_id: int,
+    payload: NotesRequest | None = None,
+    session: Session = Depends(get_session),
+) -> dict:
+    """Queue study-note generation. With no body the provider comes from
+    config.yaml; passing one runs a named provider instead, which is how the
+    same lecture gets summarised twice for comparison."""
+    _get(session, lecture_id)
+    has_transcript = session.exec(
+        select(Transcript.id).where(Transcript.lecture_id == lecture_id)
+    ).first()
+    if not has_transcript:
+        raise HTTPException(
+            status_code=409, detail="Transcribe this lecture before generating notes"
+        )
+
+    request = payload or NotesRequest()
+    return jobs.enqueue_notes(lecture_id, provider=request.provider, model=request.model)
+
+
+@router.get("/{lecture_id}/notes", response_model=list[NoteRead])
+def list_notes(
+    lecture_id: int, session: Session = Depends(get_session)
+) -> list[Note]:
+    return list(
+        session.exec(
+            select(Note)
+            .where(Note.lecture_id == lecture_id)
+            .order_by(Note.created_at.desc())
+        ).all()
+    )
 
 
 @router.get("/{lecture_id}/transcript", response_model=TranscriptRead)

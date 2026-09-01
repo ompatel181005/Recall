@@ -1,5 +1,6 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
-import { api, type Job, type Lecture, type Transcript } from '../api'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { api, type LectureJobs, type Lecture, type Transcript } from '../api'
+import NotesPanel from './NotesPanel'
 
 function formatClock(seconds: number): string {
   const s = Math.max(0, Math.floor(seconds))
@@ -20,7 +21,8 @@ export default function LectureDetail({
   onDeleted: () => void
 }) {
   const [transcript, setTranscript] = useState<Transcript | null>(null)
-  const [job, setJob] = useState<Job | null>(null)
+  const [jobs, setJobs] = useState<LectureJobs | null>(null)
+  const [tab, setTab] = useState<'transcript' | 'notes'>('transcript')
   const [currentTime, setCurrentTime] = useState(0)
   const [query, setQuery] = useState('')
   const [title, setTitle] = useState(lecture.title)
@@ -43,27 +45,40 @@ export default function LectureDetail({
     }
   }, [lecture.id, lecture.has_transcript, lecture.status])
 
-  // While the GPU is working, poll for progress and refresh once it lands.
-  useEffect(() => {
-    if (lecture.status !== 'transcribing') return
-    let cancelled = false
-    const poll = async () => {
-      try {
-        const next = await api.job(lecture.id)
-        if (cancelled) return
-        setJob(next)
-        if (next.status === 'done' || next.status === 'failed') onChanged()
-      } catch {
-        /* backend restarting — the next tick will pick it up */
-      }
+  const notesRunning =
+    jobs?.notes.status === 'queued' || jobs?.notes.status === 'running'
+  const busy = lecture.status === 'transcribing' || notesRunning
+
+  const pollJobs = useCallback(async () => {
+    try {
+      return await api.jobs(lecture.id)
+    } catch {
+      return null // backend restarting — the next tick picks it up
     }
-    poll()
-    const id = setInterval(poll, 1500)
+  }, [lecture.id])
+
+  // One poll covers both lanes: transcription on the GPU and note generation.
+  useEffect(() => {
+    let cancelled = false
+
+    const tick = async () => {
+      const next = await pollJobs()
+      if (cancelled || !next) return
+      setJobs(next)
+      // The lecture row itself changes when transcription lands (status,
+      // duration, has_transcript), so ask the parent to refetch it.
+      const settled =
+        next.transcribe.status === 'done' || next.transcribe.status === 'failed'
+      if (lecture.status === 'transcribing' && settled) onChanged()
+    }
+
+    tick()
+    const id = busy ? setInterval(tick, 1500) : undefined
     return () => {
       cancelled = true
-      clearInterval(id)
+      if (id) clearInterval(id)
     }
-  }, [lecture.id, lecture.status, onChanged])
+  }, [lecture.id, lecture.status, busy, pollJobs, onChanged])
 
   const segments = useMemo(() => {
     if (!transcript) return []
@@ -98,12 +113,17 @@ export default function LectureDetail({
   async function retranscribe() {
     try {
       setError(null)
-      setJob(await api.transcribe(lecture.id))
+      await api.transcribe(lecture.id)
       onChanged()
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e))
     }
   }
+
+  const refreshJobs = useCallback(async () => {
+    const next = await pollJobs()
+    if (next) setJobs(next)
+  }, [pollJobs])
 
   async function remove() {
     try {
@@ -157,15 +177,20 @@ export default function LectureDetail({
       {lecture.status === 'transcribing' && (
         <div className="progress-box">
           <div className="progress">
-            <div className="progress-fill" style={{ width: `${(job?.progress ?? 0) * 100}%` }} />
+            <div
+              className="progress-fill"
+              style={{ width: `${(jobs?.transcribe.progress ?? 0) * 100}%` }}
+            />
           </div>
-          <p className="muted">{job?.message ?? 'Queued…'}</p>
+          <p className="muted">{jobs?.transcribe.message ?? 'Queued…'}</p>
         </div>
       )}
 
       {lecture.status === 'failed' && (
         <div className="progress-box">
-          <p className="error">Transcription failed: {job?.error || 'unknown error'}</p>
+          <p className="error">
+            Transcription failed: {jobs?.transcribe.error || 'unknown error'}
+          </p>
           <button onClick={retranscribe}>Try again</button>
         </div>
       )}
@@ -176,7 +201,34 @@ export default function LectureDetail({
         </button>
       )}
 
-      {transcript && (
+      {lecture.has_transcript && (
+        <nav className="tabs">
+          <button
+            className={`tab ${tab === 'transcript' ? 'selected' : ''}`}
+            onClick={() => setTab('transcript')}
+          >
+            Transcript
+          </button>
+          <button
+            className={`tab ${tab === 'notes' ? 'selected' : ''}`}
+            onClick={() => setTab('notes')}
+          >
+            Notes
+            {notesRunning && <span className="tab-dot" aria-label="generating" />}
+          </button>
+        </nav>
+      )}
+
+      {tab === 'notes' && lecture.has_transcript && (
+        <NotesPanel
+          lectureId={lecture.id}
+          job={jobs?.notes ?? null}
+          onGenerate={refreshJobs}
+          onSeek={seekTo}
+        />
+      )}
+
+      {tab === 'transcript' && transcript && (
         <>
           <div className="transcript-tools">
             <input
