@@ -40,6 +40,7 @@ class Settings:
         self.tasks: dict[str, dict[str, Any]] = self._cfg.get("tasks", {})
 
         self.anthropic_api_key = os.getenv("ANTHROPIC_API_KEY", "")
+        self.gemini_api_key = os.getenv("GEMINI_API_KEY", "")
         self.openai_api_key = os.getenv("OPENAI_API_KEY", "")
         self.openai_base_url = os.getenv("OPENAI_BASE_URL", "https://api.openai.com/v1")
         # 127.0.0.1, not localhost: Ollama binds IPv4 only, and localhost resolves

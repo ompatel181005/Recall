@@ -59,8 +59,9 @@ gitignored.
   the API stays responsive.
 - **LLM provider layer** (`backend/app/services/providers/`):
   - `base.py` defines `LLMProvider.complete(messages, system, max_tokens, ...)`.
-  - Implementations: `claude.py` (Anthropic SDK), `openai_compat.py` (OpenAI SDK
-    pointed at any base URL), `ollama.py` (local HTTP API).
+  - Implementations: `claude.py` (Anthropic SDK), `gemini.py` (google-genai),
+    `openai_compat.py` (OpenAI SDK pointed at any base URL), `ollama.py`
+    (local HTTP API).
   - `registry.py` reads `config.yaml`'s `tasks:` section and returns the right
     provider+model for a named task (`summarize`, `chat`, `quiz`, `embeddings`).
 - **Web search** (M5): Claude's built-in web-search tool when the task routes

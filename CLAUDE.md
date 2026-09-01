@@ -20,8 +20,8 @@ runs locally on a Windows 11 laptop (RTX 4060 8GB VRAM). Read
 ## Core conventions
 
 - **Provider routing is config, not code.** `config.yaml` maps each task
-  (summarize / chat / quiz / embeddings) to a provider (claude | openai |
-  ollama) + model. Feature code asks
+  (summarize / chat / quiz / embeddings) to a provider (claude | gemini |
+  openai | ollama) + model. Feature code asks
   `services/providers/registry.get_provider_for_task("summarize")` and calls
   `.complete(...)`. Adding a provider = new subclass of
   `LLMProvider` in `services/providers/` + registry entry.

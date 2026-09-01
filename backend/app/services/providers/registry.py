@@ -3,11 +3,13 @@
 from ...config import settings
 from .base import LLMProvider
 from .claude import ClaudeProvider
+from .gemini import GeminiProvider
 from .ollama import OllamaProvider
 from .openai_compat import OpenAICompatProvider
 
 _PROVIDERS: dict[str, type[LLMProvider]] = {
     "claude": ClaudeProvider,
+    "gemini": GeminiProvider,
     "openai": OpenAICompatProvider,
     "ollama": OllamaProvider,
 }

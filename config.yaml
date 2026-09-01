@@ -2,7 +2,7 @@
 # ---------------------------
 # Every AI task is routed to a provider + model here. Switching a task between
 # local (ollama) and cloud (claude / openai) is an edit to this file — no code
-# changes. Providers: claude | openai | ollama
+# changes. Providers: claude | gemini | openai | ollama
 
 transcription:
   # Runs locally on the GPU via faster-whisper (not part of the LLM routing).
@@ -17,6 +17,8 @@ tasks:
     provider: claude
     model: claude-sonnet-5
     compare_with:       # offered in the UI beside the default, to compare quality
+      - provider: gemini
+        model: gemini-3.7-flash
       - provider: ollama
         model: qwen2.5:7b
   chat:                 # course Q&A tutor (M4)

@@ -57,9 +57,19 @@ Chrome's "Insecure origins treated as secure" flag.
 ## Configuration
 
 `config.yaml` routes every AI task to a provider and model — switch any task
-between local (Ollama) and cloud (Claude or any OpenAI-compatible API) by
-editing that file. Transcription model/device also lives there. API keys go in
-`.env` (see `.env.example`).
+between local (Ollama) and cloud (Claude, Gemini, or any OpenAI-compatible
+API) by editing that file. Transcription model/device also lives there. API
+keys go in `.env` (see `.env.example`).
+
+`tasks.summarize.compare_with` lists extra provider/model pairs the Notes tab
+offers beside the default, so the same lecture can be summarised twice and
+the results compared before you commit to a default.
+
+Gemini is the cheapest good option: its free tier is generous, and unlike a
+local 7B it does not invent textbook detail for topics the lecturer only
+named. Get a key at <https://aistudio.google.com/apikey>, put it in `.env` as
+`GEMINI_API_KEY`, then set `tasks.summarize.provider: gemini` to make it the
+default.
 
 ## Notes
 
