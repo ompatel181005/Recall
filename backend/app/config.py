@@ -19,17 +19,28 @@ class Settings:
             self._cfg: dict[str, Any] = yaml.safe_load(f)
 
         storage = self._cfg.get("storage", {})
-        # TRANSCRIBEAI_DATA_DIR redirects everything — database, audio, slides —
+        # RECALL_DATA_DIR redirects everything — database, audio, slides —
         # somewhere else. Tests must set it: they create and delete courses
         # wholesale, and pointing that at the real data_dir destroys recordings.
-        override = os.getenv("TRANSCRIBEAI_DATA_DIR", "").strip()
+        override = os.getenv("RECALL_DATA_DIR", "").strip()
         self.data_dir = (
             Path(override).resolve()
             if override
             else (REPO_ROOT / "backend" / storage.get("data_dir", "../data")).resolve()
         )
         self.data_dir.mkdir(parents=True, exist_ok=True)
-        self.db_path = self.data_dir / "transcribeai.db"
+        self.db_path = self.data_dir / "recall.db"
+
+        # The project was called TranscribeAI before. Carry an existing database
+        # over rather than silently starting an empty one beside it — it holds
+        # recordings that cannot be made again. If the rename cannot happen
+        # (file locked, permissions), keep using the old file instead.
+        legacy_db = self.data_dir / "transcribeai.db"
+        if legacy_db.exists() and not self.db_path.exists():
+            try:
+                legacy_db.rename(self.db_path)
+            except OSError:
+                self.db_path = legacy_db
 
         self.transcription: dict[str, Any] = self._cfg.get("transcription", {})
         # values are provider/model strings plus an optional compare_with list

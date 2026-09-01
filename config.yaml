@@ -1,4 +1,4 @@
-# TranscribeAI configuration
+# Recall configuration
 # ---------------------------
 # Every AI task is routed to a provider + model here. Switching a task between
 # local (ollama) and cloud (claude / openai) is an edit to this file — no code

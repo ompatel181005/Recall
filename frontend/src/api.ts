@@ -1,4 +1,4 @@
-// Typed fetch client for the TranscribeAI backend (/api is proxied by Vite in dev).
+// Typed fetch client for the Recall backend (/api is proxied by Vite in dev).
 
 export interface Health {
   status: string

@@ -1,4 +1,4 @@
-"""TranscribeAI API entrypoint.
+"""Recall API entrypoint.
 
 Dev: uvicorn app.main:app --reload --port 8000 (frontend dev server proxies /api).
 Prod: also serves the built frontend from frontend/dist if present.
@@ -24,7 +24,7 @@ async def lifespan(app: FastAPI):
     yield
 
 
-app = FastAPI(title="TranscribeAI", lifespan=lifespan)
+app = FastAPI(title="Recall", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,

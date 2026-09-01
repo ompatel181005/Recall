@@ -1,7 +1,7 @@
 [project]
-name = "transcribeai-backend"
+name = "recall-backend"
 version = "0.1.0"
-description = "TranscribeAI backend — lecture transcription and AI study API"
+description = "Recall backend — lecture transcription and AI study API"
 requires-python = ">=3.12"
 dependencies = [
     "fastapi>=0.115",

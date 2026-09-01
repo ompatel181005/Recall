@@ -1,4 +1,4 @@
-# TranscribeAI
+# Recall
 
 Personal lecture-recording → transcription → AI study companion. Single user,
 runs locally on a Windows 11 laptop (RTX 4060 8GB VRAM). Read
@@ -34,7 +34,7 @@ runs locally on a Windows 11 laptop (RTX 4060 8GB VRAM). Read
 - **Recordings are irreplaceable.** A lecture captures a one-off event that
   cannot be re-recorded. Deleting one moves its audio and text to
   `data/.trash/` rather than destroying them; keep it that way.
-- **Never run tests against the real `data/`.** Set `TRANSCRIBEAI_DATA_DIR`
+- **Never run tests against the real `data/`.** Set `RECALL_DATA_DIR`
   to a scratch path first. Test code creates and deletes courses wholesale,
   and a cascade delete against real data destroys the user's lectures.
 - API routes live under `/api/*` in `backend/app/routers/`; keep routers thin,

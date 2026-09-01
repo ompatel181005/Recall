@@ -1,9 +1,21 @@
-# TranscribeAI
+# Recall
 
-Record your lectures, transcribe them locally on your GPU, and let AI turn them
-into notes, a course tutor, quizzes, and flashcards. Single-user local web app:
-FastAPI backend + React frontend, open it from your laptop or your phone on the
-same Wi-Fi.
+**Record a lecture, get it back when you need it.**
+
+Recall records your lectures, transcribes them locally on your own GPU, and
+turns them into study notes and a tutor that answers from what your lecturer
+actually said — citing the lecture and the minute it came from, so you can jump
+straight to the audio and hear it yourself.
+
+Everything runs on your machine. Transcription uses Whisper on the GPU, and the
+AI tasks are routed per task in `config.yaml`, so you can stay entirely local
+with Ollama or point any of them at Claude, Gemini or an OpenAI-compatible API.
+
+- Record in the browser, or import an existing recording (mic, tab audio for
+  online lectures, or both mixed)
+- Timestamped transcripts with click-to-seek playback
+- Structured study notes, with the lecturer's slide PDFs folded in
+- A course tutor with citations back to the source lecture and timestamp
 
 - Product spec: [docs/SPEC.md](docs/SPEC.md)
 - Milestones: [docs/ROADMAP.md](docs/ROADMAP.md)
@@ -120,5 +132,5 @@ default.
 - Deleting a lecture or course moves its audio and text into `data/.trash/`,
   one timestamped folder per lecture with a `lecture.json` holding the title,
   transcript and notes. Nothing ever empties it — that is your call.
-- Set `TRANSCRIBEAI_DATA_DIR` to run against a throwaway data directory, which
+- Set `RECALL_DATA_DIR` to run against a throwaway data directory, which
   is what any automated test should do.

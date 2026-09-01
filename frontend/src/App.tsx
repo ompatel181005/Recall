@@ -170,7 +170,7 @@ export default function App() {
   return (
     <div className="layout">
       <aside className="sidebar">
-        <h1 className="brand">TranscribeAI</h1>
+        <h1 className="brand">Recall</h1>
 
         <nav className="course-list">
           {courses.map((c) => (
