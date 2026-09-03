@@ -17,6 +17,14 @@ from ..db import get_session
 from ..models import SlideDeck
 from ..services import jobs
 
+# Browsers render a PDF inline; a .pptx can only be downloaded and opened in
+# PowerPoint, so it is served as an attachment rather than a broken preview.
+DECK_MIME = {
+    ".pdf": "application/pdf",
+    ".pptx": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+    ".ppt": "application/vnd.ms-powerpoint",
+}
+
 router = APIRouter(prefix="/api/slides", tags=["slides"])
 
 
@@ -28,16 +36,22 @@ def _get(session: Session, deck_id: int) -> SlideDeck:
 
 
 @router.get("/{deck_id}/file")
-def get_pdf(deck_id: int, session: Session = Depends(get_session)) -> FileResponse:
-    """The PDF itself, shown inline so the browser's own viewer opens it."""
+def get_file(deck_id: int, session: Session = Depends(get_session)) -> FileResponse:
+    """The deck itself — inline for a PDF, a download for anything else."""
     deck = _get(session, deck_id)
     path = settings.data_dir / deck.pdf_path
     if not path.exists():
-        raise HTTPException(status_code=404, detail="PDF is missing from disk")
+        raise HTTPException(status_code=404, detail="Slide file is missing from disk")
+
+    suffix = path.suffix.lower()
+    disposition = "inline" if suffix == ".pdf" else "attachment"
+    # Name the download after the stored file, so a converted .ppt does not
+    # arrive claiming an extension it no longer has.
+    name = Path(deck.filename).stem + suffix
     return FileResponse(
         path,
-        media_type="application/pdf",
-        headers={"Content-Disposition": f'inline; filename="{Path(deck.filename).name}"'},
+        media_type=DECK_MIME.get(suffix, "application/octet-stream"),
+        headers={"Content-Disposition": f'{disposition}; filename="{name}"'},
     )
 
 

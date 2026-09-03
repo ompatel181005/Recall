@@ -40,10 +40,15 @@ and an explicit list of what the lecture *didn't* cover. Every heading carries a
 
 ![Generated study notes with clickable timestamps and a model picker](docs/images/notes.jpg)
 
-**Feed it the slides.** Attach the lecturer's PDF and its text joins the
-transcript as source material. It fixes technical terms speech recognition
-mangles and recovers what was shown rather than said — marked "(from slides)" so
-you know which parts you won't hear in the audio.
+**Feed it the slides.** Attach the lecturer's deck — **PDF or PowerPoint** —
+and its text joins the transcript as source material. It fixes technical terms
+speech recognition mangles and recovers what was shown rather than said, marked
+"(from slides)" so you know which parts you won't hear in the audio.
+
+PowerPoint files are read directly rather than converted, which also picks up
+the **speaker notes** — often the most useful part of a deck, and the part a PDF
+export throws away. Legacy `.ppt` is converted first, and needs PowerPoint or
+LibreOffice installed; re-saving as `.pptx` avoids that.
 
 **Ask the course.** The tutor searches every indexed lecture at once and answers
 with citations. Ask "what did she say about the region of convergence?" and get

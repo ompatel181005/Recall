@@ -23,7 +23,7 @@ from ..schemas import (
     SlideDeckRead,
     TranscriptRead,
 )
-from ..services import jobs, media, slides
+from ..services import convert, jobs, media, slides
 
 router = APIRouter(prefix="/api/lectures", tags=["lectures"])
 
@@ -266,8 +266,20 @@ async def upload_slides(
     at the upload."""
     _get(session, lecture_id)
 
-    if Path(file.filename or "").suffix.lower() != ".pdf":
-        raise HTTPException(status_code=415, detail="Slides must be a PDF")
+    suffix = Path(file.filename or "").suffix.lower()
+    if suffix not in slides.SUPPORTED_SUFFIXES:
+        raise HTTPException(
+            status_code=415,
+            detail=f"Slides must be one of: {', '.join(sorted(slides.SUPPORTED_SUFFIXES))}",
+        )
+    if suffix in slides.NEEDS_CONVERSION and not convert.available():
+        raise HTTPException(
+            status_code=415,
+            detail=(
+                "Legacy .ppt files need PowerPoint or LibreOffice installed to be read. "
+                "Open it and re-save as .pptx or .pdf instead."
+            ),
+        )
 
     directory = _slides_dir(lecture_id)
     directory.mkdir(parents=True, exist_ok=True)
@@ -280,11 +292,31 @@ async def upload_slides(
         shutil.copyfileobj(file.file, out, length=1024 * 1024)
     await file.close()
 
+    # Legacy .ppt cannot be read directly, so it becomes a PDF and the original
+    # is dropped. .pptx is read as-is: converting it would cost a slow blocking
+    # round trip through Office and throw the speaker notes away.
+    if suffix in slides.NEEDS_CONVERSION:
+        converted = convert.to_pdf(destination, directory)
+        if converted is None:
+            destination.unlink(missing_ok=True)
+            raise HTTPException(
+                status_code=422,
+                detail="Converting this .ppt failed. Re-save it as .pptx or .pdf and try again.",
+            )
+        destination.unlink(missing_ok=True)
+        destination = converted
+
     try:
-        text, pages = slides.extract_pdf_text(destination)
+        text, pages = slides.extract_text(destination)
     except Exception as exc:
         destination.unlink(missing_ok=True)
-        raise HTTPException(status_code=422, detail=f"Could not read this PDF: {exc}") from exc
+        # Deliberately not the raw exception: pypdf and python-pptx both put the
+        # absolute file path in their messages, which would leak where the
+        # user's data lives into an API response.
+        raise HTTPException(
+            status_code=422,
+            detail=f"Could not read this file — it may be corrupt or not a real {suffix} file",
+        ) from exc
 
     deck = SlideDeck(
         lecture_id=lecture_id,

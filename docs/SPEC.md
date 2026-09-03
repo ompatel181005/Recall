@@ -90,10 +90,16 @@ gitignored.
 - **Tutor** (`services/tutor.py`, M4): numbers the retrieved passages, asks
   the model to cite by number, then maps numbers back to lecture and
   timestamp — so a citation cannot name a lecture that does not exist.
-- **Slides** (`services/slides.py`, M3): pypdf extracts per-page text into one
-  string with `[Slide N]` markers, so the summariser can cite a slide number
-  and no schema change is needed. Image-only decks yield nothing and are
-  flagged rather than silently empty — OCR is out of scope.
+- **Slides** (`services/slides.py`, M3): PDFs go through pypdf, PowerPoint
+  through python-pptx — including tables, grouped shapes and speaker notes,
+  which a PDF export would lose. Both produce one string with `[Slide N]`
+  markers, so the summariser can cite a slide number and no schema change is
+  needed. Image-only decks yield nothing and are flagged rather than silently
+  empty — OCR is out of scope.
+- **Conversion** (`services/convert.py`, M3): best-effort PowerPoint → PDF via
+  LibreOffice or the installed Office. Only needed for legacy binary `.ppt`,
+  which python-pptx cannot read; `.pptx` is never converted, since that would
+  block the upload on an external process and discard the speaker notes.
 
 ## API surface (grows per milestone)
 
@@ -117,10 +123,11 @@ gitignored.
   edit and remove stored notes (M2).
 - `GET  /api/tasks/{task}/providers` — the configured provider plus its
   `compare_with` alternatives, each flagged available or not (M2).
-- `POST|GET /api/lectures/{id}/slides` — attach a slide PDF (text extracted on
-  upload) and list a lecture's decks (M3).
-- `GET /api/slides/{id}/file` (inline PDF), `GET /api/slides/{id}/text`
-  (what the summariser sees), `DELETE /api/slides/{id}` (M3).
+- `POST|GET /api/lectures/{id}/slides` — attach a slide deck as PDF, PPTX or
+  PPT (text extracted on upload) and list a lecture's decks (M3).
+- `GET /api/slides/{id}/file` (PDFs inline, other formats as a download),
+  `GET /api/slides/{id}/text` (what the summariser sees),
+  `DELETE /api/slides/{id}` (M3).
 - `GET|POST|DELETE /api/courses/{id}/chat` — tutor history, ask a question,
   clear the conversation (M4).
 - `GET|POST /api/courses/{id}/index` — how much of a course is searchable,

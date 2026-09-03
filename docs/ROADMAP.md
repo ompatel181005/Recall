@@ -50,7 +50,10 @@ routed through `summarize` is the better choice when accuracy matters.
 
 ## M3 — Slides ✅ (done)
 
-- Upload one or more PDFs per lecture. Text is extracted at upload time (pypdf)
+- Upload one or more decks per lecture — PDF, PPTX, or legacy PPT. PowerPoint
+  is read natively (python-pptx), which keeps tables and speaker notes that a
+  PDF export drops; only legacy .ppt is converted first. Text is extracted at
+  upload time
   so a broken or image-only deck is reported while the user is still looking at
   it; a deck with no readable text is flagged "no text" rather than silently
   contributing nothing. OCR remains out of scope.

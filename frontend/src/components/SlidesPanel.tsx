@@ -63,12 +63,18 @@ export default function SlidesPanel({
           onClick={() => fileRef.current?.click()}
           disabled={uploadPct !== null}
         >
-          Add slide PDF
+          Add slides
         </button>
         <span className="muted small">
-          Slide text is included when notes are generated.
+          PDF or PowerPoint. Slide text is included when notes are generated.
         </span>
-        <input ref={fileRef} type="file" accept="application/pdf,.pdf" hidden onChange={onPick} />
+        <input
+          ref={fileRef}
+          type="file"
+          accept=".pdf,.pptx,.ppt,application/pdf,application/vnd.openxmlformats-officedocument.presentationml.presentation"
+          hidden
+          onChange={onPick}
+        />
       </div>
 
       {error && <p className="error">{error}</p>}
@@ -85,7 +91,8 @@ export default function SlidesPanel({
       {decks && decks.length === 0 && (
         <p className="muted">
           No slides attached. Adding the lecturer's deck helps the notes get technical
-          terms and notation right, since speech recognition often mangles them.
+          terms and notation right, since speech recognition often mangles them. A
+          PowerPoint file also brings its speaker notes, which a PDF export drops.
         </p>
       )}
 
@@ -125,8 +132,8 @@ export default function SlidesPanel({
 
       {decks?.some((d) => !d.has_text) && (
         <p className="muted small">
-          A deck marked “no text” is a scan or export of images. Nothing can be read from
-          it without OCR, so it will not reach the notes.
+          A deck marked “no text” is a scan or an export of images. Nothing can be read
+          from it without OCR, so it will not reach the notes.
         </p>
       )}
     </section>

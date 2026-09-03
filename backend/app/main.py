@@ -13,7 +13,7 @@ from fastapi.staticfiles import StaticFiles
 from .config import REPO_ROOT, settings
 from .db import init_db
 from .routers import chat, courses, lectures, notes, slides, tasks
-from .services import jobs, media
+from .services import convert, jobs, media
 from .services.providers.registry import provider_status
 from .services.transcribe import cuda_available
 
@@ -43,6 +43,7 @@ def health() -> dict:
         "tasks": settings.tasks,
         "transcription_model": settings.transcription.get("model", ""),
         "ffmpeg": media.ffmpeg_available(),
+        "slide_converter": convert.converter_name(),
         "queue_depth": jobs.queue_depth(),
     }
 
