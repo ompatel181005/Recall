@@ -97,6 +97,17 @@ def queue_depth() -> int:
     return sum(q.qsize() for q in _queues.values())
 
 
+def busy() -> bool:
+    """True while any job is queued or running.
+
+    The desktop launcher checks this before shutting the backend down, so
+    closing the window mid-transcription cannot throw the work away — job
+    state lives in memory and would not survive the process.
+    """
+    with _jobs_lock:
+        return any(j.status in ("queued", "running") for j in _jobs.values())
+
+
 def update(job: Job | str, **fields) -> None:
     with _jobs_lock:
         if isinstance(job, str):

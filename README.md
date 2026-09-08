@@ -107,7 +107,21 @@ Then create `.env` in the repo root with any cloud keys you want (see
 
 ## Running
 
-Two terminals:
+Double-click **`Recall.cmd`**. It builds the interface if needed, starts the
+backend, starts Ollama if it is installed, and opens the app in its own window —
+own taskbar entry, no tabs or address bar.
+
+For a Desktop and Start Menu shortcut with an icon, run this once:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\install-shortcut.ps1
+```
+
+Closing the window shuts the backend down, but never while a transcription is
+still running — job progress lives in memory and would be lost. `Recall.cmd
+-Stop` stops it by hand; `-NoWindow` starts the backend without opening the UI.
+
+It stays a normal web app underneath, which is worth keeping for development:
 
 ```powershell
 cd backend; .venv\Scripts\python -m uvicorn app.main:app --reload --port 8000
@@ -117,9 +131,9 @@ cd backend; .venv\Scripts\python -m uvicorn app.main:app --reload --port 8000
 cd frontend; npm run dev
 ```
 
-Open <http://localhost:5173>. Add a course, then record or import a lecture —
-transcription and indexing start on their own. "System status" in the sidebar
-shows GPU, ffmpeg and provider health.
+That gives hot reload on <http://localhost:5173>. Either way: add a course, then
+record or import a lecture — transcription and indexing start on their own.
+"System status" in the sidebar shows GPU, ffmpeg and provider health.
 
 Browser recording needs a secure context. `localhost` qualifies; reaching the
 dev server over LAN by IP does not, so recording from a phone needs HTTPS or

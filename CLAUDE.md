@@ -44,6 +44,11 @@ runs locally on a Windows 11 laptop (RTX 4060 8GB VRAM). Read
 
 ## Running
 
+- Desktop: `Recall.cmd` — one process, backend serves `frontend/dist`, opens a
+  Chrome app window. `-Stop` / `-NoWindow` supported. See `scripts/launch.ps1`.
+  It waits for `/api/health` `busy` to clear before shutting down, so closing
+  the window cannot discard an in-flight transcription.
+- Development (hot reload), still two processes:
 - Backend: `backend\.venv\Scripts\python -m uvicorn app.main:app --reload --port 8000`
   (cwd `backend/`).
 - Frontend: `npm run dev` (cwd `frontend/`), opens on port 5173.

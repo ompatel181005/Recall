@@ -45,6 +45,7 @@ def health() -> dict:
         "ffmpeg": media.ffmpeg_available(),
         "slide_converter": convert.converter_name(),
         "queue_depth": jobs.queue_depth(),
+        "busy": jobs.busy(),
     }
 
 
