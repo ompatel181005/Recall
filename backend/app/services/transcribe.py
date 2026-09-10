@@ -98,6 +98,7 @@ def get_model() -> Any:
 def transcribe_audio(
     audio_path: str | Path,
     progress_cb: Callable[[float, str], None] | None = None,
+    hotwords: str = "",
 ) -> dict:
     """Transcribe one file. `progress_cb(fraction, message)` is called as
     segments stream in. Returns {full_text, segments, language, duration,
@@ -116,8 +117,11 @@ def transcribe_audio(
     if progress_cb:
         progress_cb(0.0, "Transcribing…")
 
-    # Distil models are English-only; the full models auto-detect.
-    language = "en" if name.startswith("distil") else None
+    # Pinned in config.yaml rather than left to detection: the multilingual
+    # models can mis-detect a lecture that opens with a quiet minute of room
+    # noise, and then transcribe the whole hour as the wrong language.
+    configured = str(settings.transcription.get("language", "en")).strip().lower()
+    language = None if configured in ("", "auto") else configured
 
     segment_iter, info = model.transcribe(
         str(path),
@@ -125,6 +129,12 @@ def transcribe_audio(
         language=language,
         vad_filter=True,                 # skip silence between slides/questions
         condition_on_previous_text=False,  # avoids repetition loops on long lectures
+        # Slide vocabulary, biasing every decode window toward the lecture's own
+        # terms. Deliberately not initial_prompt: with conditioning off,
+        # faster-whisper resets the prompt after each window, so initial_prompt
+        # would only reach the first 30 seconds. hotwords are re-injected every
+        # window regardless.
+        hotwords=hotwords or None,
     )
 
     total = info.duration or 0.0
@@ -155,8 +165,9 @@ def run_job(job) -> None:
     from sqlmodel import Session, select
 
     from ..db import engine
-    from ..models import Lecture, LectureStatus, Transcript
+    from ..models import Course, Lecture, LectureStatus, SlideDeck, Transcript
     from . import jobs
+    from . import slides as slides_service
 
     with Session(engine) as session:
         lecture = session.get(Lecture, job.lecture_id)
@@ -165,6 +176,18 @@ def run_job(job) -> None:
             return
         source = settings.data_dir / lecture.audio_path if lecture.audio_path else None
 
+        # Anything already attached to this lecture that names its subject
+        # matter: the deck's terms, plus the course name.
+        decks = session.exec(
+            select(SlideDeck).where(SlideDeck.lecture_id == job.lecture_id)
+        ).all()
+        course = session.get(Course, lecture.course_id)
+        vocabulary = slides_service.key_terms(
+            "\n".join(d.extracted_text for d in decks)
+        )
+        if course and course.name:
+            vocabulary = f"{course.name} {vocabulary}".strip()
+
     if source is None or not source.exists():
         jobs.fail(job, "No audio file attached to this lecture")
         return
@@ -172,7 +195,7 @@ def run_job(job) -> None:
     def on_progress(fraction: float, message: str) -> None:
         jobs.update(job, progress=fraction, message=message)
 
-    result = transcribe_audio(source, progress_cb=on_progress)
+    result = transcribe_audio(source, progress_cb=on_progress, hotwords=vocabulary)
 
     with Session(engine) as session:
         existing = session.exec(

@@ -6,11 +6,20 @@
 
 transcription:
   # Runs locally on the GPU via faster-whisper (not part of the LLM routing).
-  # Models: large-v3 (best), distil-large-v3 (faster, near-parity English),
-  # medium, small. 8GB VRAM handles large-v3 with int8_float16.
-  model: distil-large-v3
+  #
+  # large-v3 over distil-large-v3 on purpose. Distil compresses the decoder from
+  # 32 layers to 2, and the decoder is what disambiguates rare words and
+  # notation. Measured on a real algorithms lecture, distil produced "equal
+  # number of hurdles and students" and "no available pairs" where large-v3 got
+  # "hospitals" and "unstable pairs". It costs ~3.4x decode time (5.9x realtime
+  # vs 20.3x on an RTX 4060) — a background job, so it costs latency, not
+  # attention. Drop to distil-large-v3 if you want speed over accuracy.
+  model: large-v3
   device: cuda          # cuda | cpu | auto
   compute_type: int8_float16
+  # large-v3 is multilingual, so it will auto-detect if this is unset — and a
+  # quiet opening minute can be mis-detected. Pin it; "auto" to detect.
+  language: en
 
 tasks:
   summarize:            # per-lecture structured notes (M2)

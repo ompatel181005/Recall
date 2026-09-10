@@ -136,3 +136,55 @@ def extract_text(path: str | Path) -> tuple[str, int]:
     if extractor is None:
         raise ValueError(f"Cannot read text from a '{suffix}' file")
     return extractor(path)
+
+
+# Deliberately far below the ~223 tokens faster-whisper allows. Measured on a
+# real lecture: 82 characters of vocabulary kept 38 segments and fixed the
+# notation, while 700 characters collapsed the same audio into 19 run-on
+# segments with no punctuation and invented new errors. A long prompt competes
+# with timestamp prediction, and coarse segments mean coarse citations.
+MAX_TERM_CHARS = 200
+
+_STOPWORDS = {
+    "slide", "slides", "lecture", "university", "chapter", "example", "examples",
+    "introduction", "overview", "summary", "questions", "reference", "references",
+    "following", "therefore", "important", "different", "something", "everything",
+}
+
+# What a technical term looks like when you cannot afford a dictionary:
+# hyphenated names (Gale-Shapley), internal capitals (McDiarmid, NP), letter+digit
+# notation (L2, x_i), and long lowercase words, which in lecture slides are
+# overwhelmingly domain vocabulary rather than ordinary English.
+_CANDIDATE = re.compile(
+    r"\b(?:[A-Z][a-z]+(?:-[A-Z][a-z]+)+"      # Gale-Shapley
+    r"|[A-Z]{2,}"                              # NP, RAM, FFT
+    r"|[A-Za-z]+[-_][A-Za-z]{3,}"              # anti-aliasing, cross_entropy
+    r"|[a-z]{9,}"                              # polynomial, convergence
+    r"|[A-Z][a-z]{5,})\b"                      # Dirichlet, Nyquist
+)
+
+
+def key_terms(extracted_text: str, limit: int = MAX_TERM_CHARS) -> str:
+    """A compact vocabulary from a deck, for priming speech recognition.
+
+    Whisper mishears exactly the words that carry a lecture's meaning — the
+    proper nouns and jargon it has little training data for. Feeding the deck's
+    own terms in as hotwords biases each decode window toward them.
+
+    Ordered by frequency, because a term the lecturer put on five slides is more
+    likely to be said aloud than one mentioned once.
+    """
+    counts: dict[str, int] = {}
+    for match in _CANDIDATE.findall(extracted_text):
+        if match.lower() in _STOPWORDS:
+            continue
+        counts[match] = counts.get(match, 0) + 1
+
+    chosen: list[str] = []
+    used = 0
+    for term in sorted(counts, key=lambda t: (-counts[t], t)):
+        if used + len(term) + 1 > limit:
+            break
+        chosen.append(term)
+        used += len(term) + 1
+    return " ".join(chosen)

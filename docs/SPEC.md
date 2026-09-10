@@ -135,6 +135,27 @@ gitignored.
   from different models are not comparable) (M4).
 - quiz/flashcard endpoints (M5)
 
+## Transcription quality
+
+Measured on a real algorithms lecture, not assumed:
+
+- `large-v3` over `distil-large-v3`. Distil compresses the decoder from 32
+  layers to 2, and the decoder is what disambiguates rare words. Distil gave
+  "equal number of hurdles and students" and "no available pairs"; large-v3 gave
+  "hospitals" and "unstable pairs". Costs ~3.4x decode time (5.9x realtime vs
+  20.3x on an RTX 4060).
+- Slide vocabulary is fed in as `hotwords`, not `initial_prompt`. With
+  `condition_on_previous_text=False`, faster-whisper resets the prompt after
+  every 30-second window, so `initial_prompt` only reaches the first window —
+  on an hour-long lecture, effectively nothing. `hotwords` are re-injected per
+  window.
+- That vocabulary is capped hard (200 chars). 82 chars fixed the notation and
+  kept 38 segments; 700 chars collapsed the same audio to 19 run-on segments
+  and invented new errors. A long prompt competes with timestamp prediction.
+- Per-segment `avg_logprob` tracks quality well (-0.41 on clean passages, -0.63
+  on a fumbled one) but is **not stored**, so nothing downstream can tell a
+  confident sentence from a guess. Storing it is the next obvious improvement.
+
 ## Quality bars
 
 - Transcription accuracy is the foundation — prefer a bigger Whisper model over
