@@ -213,3 +213,33 @@ def enqueue_notes(lecture_id: int, provider: str = "", model: str = "") -> dict:
 
 def enqueue_index(lecture_id: int) -> dict:
     return enqueue("index", lecture_id)
+
+
+def reconcile_stale_jobs() -> int:
+    """Clear lectures left mid-transcription by a crash or restart.
+
+    Job state lives in memory, so a process that dies while transcribing leaves
+    the lecture row saying `transcribing` forever — the UI polls a job that no
+    longer exists and shows a progress bar that never moves. At startup nothing
+    is running by definition, so any such lecture is stale: it goes back to
+    `ready` if a transcript survived, or `recorded` so it can simply be retried.
+    """
+    from sqlmodel import select
+
+    from ..models import Transcript
+
+    with Session(engine) as session:
+        stuck = session.exec(
+            select(Lecture).where(Lecture.status == LectureStatus.transcribing)
+        ).all()
+        for lecture in stuck:
+            has_transcript = session.exec(
+                select(Transcript.id).where(Transcript.lecture_id == lecture.id)
+            ).first()
+            lecture.status = (
+                LectureStatus.ready if has_transcript else LectureStatus.recorded
+            )
+            session.add(lecture)
+        if stuck:
+            session.commit()
+        return len(stuck)

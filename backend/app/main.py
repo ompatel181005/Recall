@@ -21,6 +21,9 @@ from .services.transcribe import cuda_available
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     init_db()
+    stale = jobs.reconcile_stale_jobs()
+    if stale:
+        print(f"Reset {stale} lecture(s) left mid-transcription by a previous run.")
     yield
 
 

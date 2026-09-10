@@ -185,7 +185,10 @@ def run_job(job) -> None:
         vocabulary = slides_service.key_terms(
             "\n".join(d.extracted_text for d in decks)
         )
-        if course and course.name:
+        # A course code like "CS 401" is not vocabulary — it primes nothing and
+        # still occupies the prompt slot. Only pass a name that carries actual
+        # subject words, e.g. "Signals and Systems".
+        if course and any(len(w) >= 4 and w.isalpha() for w in course.name.split()):
             vocabulary = f"{course.name} {vocabulary}".strip()
 
     if source is None or not source.exists():
