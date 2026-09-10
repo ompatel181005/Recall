@@ -24,6 +24,9 @@ async def lifespan(app: FastAPI):
     stale = jobs.reconcile_stale_jobs()
     if stale:
         print(f"Reset {stale} lecture(s) left mid-transcription by a previous run.")
+    requeued = jobs.reindex_unsearchable()
+    if requeued:
+        print(f"Queued {requeued} lecture(s) that had no search index.")
     yield
 
 

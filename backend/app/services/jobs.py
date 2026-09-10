@@ -243,3 +243,30 @@ def reconcile_stale_jobs() -> int:
         if stuck:
             session.commit()
         return len(stuck)
+
+
+def reindex_unsearchable() -> int:
+    """Queue indexing for lectures that have a transcript but no chunks.
+
+    An index job dies with the process too, and unlike a stuck status it leaves
+    no trace: the lecture looks ready, but the tutor cannot see it and never
+    says so. Cheap to detect — a transcript with no chunks is always wrong.
+    """
+    from sqlmodel import select
+
+    from ..models import Chunk, Transcript
+
+    with Session(engine) as session:
+        transcribed = {
+            lecture_id
+            for (lecture_id,) in session.exec(select(Transcript.lecture_id)).all()
+        }
+        indexed = {
+            lecture_id
+            for (lecture_id,) in session.exec(select(Chunk.lecture_id).distinct()).all()
+        }
+
+    missing = sorted(transcribed - indexed)
+    for lecture_id in missing:
+        enqueue_index(lecture_id)
+    return len(missing)
