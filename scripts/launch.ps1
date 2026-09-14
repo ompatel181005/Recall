@@ -54,6 +54,13 @@ function Stop-Backend {
     foreach ($proc in Get-BackendProcess) {
         Stop-Process -Id $proc.ProcessId -Force -ErrorAction SilentlyContinue
     }
+    # Killing is not instant: a process holding a GPU context can keep the port
+    # for a while, and a new backend started before then fails to bind.
+    $deadline = (Get-Date).AddSeconds(20)
+    while ((Get-NetTCPConnection -LocalPort $Port -State Listen -ErrorAction SilentlyContinue) -and
+           (Get-Date) -lt $deadline) {
+        Start-Sleep -Milliseconds 300
+    }
 }
 
 if ($Stop) {
@@ -118,10 +125,42 @@ try { $owned = $mutex.WaitOne(0) } catch [System.Threading.AbandonedMutexExcepti
 if (-not $owned) { return }
 
 $startedBackend = $false
-if (Test-Backend) {
+
+# A generous timeout: under memory pressure health can take several seconds, and
+# treating a slow backend as dead would kill it mid-transcription below.
+$running = $false
+try { $health = Invoke-RestMethod "$BaseUrl/api/health" -TimeoutSec 15; $running = $true } catch {}
+
+# A backend left running from before a code update keeps serving the old API.
+# Restart it when the code on disk is newer, unless it is busy.
+if ($running -and -not $health.busy) {
+    $proc = Get-BackendProcess | Sort-Object CreationDate | Select-Object -First 1
+    $code = @(Get-ChildItem (Join-Path $Root 'backend\app') -Recurse -Filter '*.py') +
+            @(Get-Item (Join-Path $Root 'config.yaml'))
+    $newest = ($code | Sort-Object LastWriteTime -Descending | Select-Object -First 1).LastWriteTime
+    if ($proc -and $newest -gt $proc.CreationDate) {
+        Write-Host 'Code changed since the backend started — restarting it.'
+        Stop-Backend
+        Start-Sleep -Seconds 1
+        $running = $false
+    }
+}
+
+if ($running) {
     Write-Host 'Recall is already running — opening the window.'
 } else {
     Stop-Backend   # clear a half-dead process holding the port
+
+    # A backend stuck in the GPU driver cannot be killed and keeps the port.
+    # Only a Windows restart clears that, so say so instead of a bind error.
+    if (Get-NetTCPConnection -LocalPort $Port -State Listen -ErrorAction SilentlyContinue) {
+        Add-Type -AssemblyName System.Windows.Forms
+        [System.Windows.Forms.MessageBox]::Show(
+            "Port $Port is still held by an earlier Recall backend that could not be stopped. " +
+            "This usually means the GPU driver is stuck. Restart Windows, then open Recall again.",
+            'Recall', 'OK', 'Error') | Out-Null
+        return
+    }
 
     $logDir = Join-Path $env:LOCALAPPDATA 'Recall'
     New-Item -ItemType Directory -Force $logDir | Out-Null
