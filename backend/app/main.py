@@ -55,6 +55,15 @@ def health() -> dict:
     }
 
 
+@app.middleware("http")
+async def revalidate_app_page(request, call_next):
+    # The page names its hashed bundle, so it must never be served stale.
+    response = await call_next(request)
+    if not request.url.path.startswith(("/api", "/assets")):
+        response.headers["Cache-Control"] = "no-cache"
+    return response
+
+
 app.include_router(chat.router)
 app.include_router(courses.router)
 app.include_router(lectures.router)

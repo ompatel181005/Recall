@@ -448,15 +448,29 @@ select:focus {
   padding-top: 14px;
 }
 
-.move-course {
+.lecture-row {
   display: flex;
   align-items: center;
-  gap: 6px;
-  margin-left: auto;
+  gap: 8px;
+  border-bottom: 1px solid var(--border);
 }
 
-.move-course select {
-  padding: 3px 8px;
+.lecture-row .lecture-item {
+  flex: 1;
+  width: auto;
+  min-width: 0;
+  border-bottom: none;
+}
+
+.move-lecture {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.move-lecture select {
+  padding: 4px 8px;
   font-size: 13px;
 }
 

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { api, type Course, type Health, type Lecture } from './api'
 import LectureDetail from './components/LectureDetail'
+import MoveLecture from './components/MoveLecture'
 import TutorPanel from './components/TutorPanel'
 import Recorder from './components/Recorder'
 import './App.css'
@@ -170,6 +171,11 @@ export default function App() {
     },
     [refreshCourses],
   )
+
+  /** Moved from the list: it leaves this course, so just refresh. */
+  const onLectureMovedAway = useCallback(async () => {
+    await Promise.all([refreshLectures(), refreshCourses()])
+  }, [refreshLectures, refreshCourses])
 
   const onLectureDeleted = useCallback(async () => {
     setLectureId(null)
@@ -348,7 +354,7 @@ export default function App() {
             {lectures.length === 0 && <p className="muted">Nothing recorded yet.</p>}
             <ul className="lecture-list">
               {lectures.map((l) => (
-                <li key={l.id}>
+                <li key={l.id} className="lecture-row">
                   <button className="lecture-item" onClick={() => openLecture(l.id, null)}>
                     <span className="lecture-title">{l.title}</span>
                     <span className={`badge ${l.status}`}>{l.status}</span>
@@ -356,6 +362,12 @@ export default function App() {
                       <span className="muted small">{formatClock(l.duration_seconds)}</span>
                     )}
                   </button>
+                  <MoveLecture
+                    lectureId={l.id}
+                    courseId={l.course_id}
+                    courses={courses}
+                    onMoved={onLectureMovedAway}
+                  />
                 </li>
               ))}
             </ul>

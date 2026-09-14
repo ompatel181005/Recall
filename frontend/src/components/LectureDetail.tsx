@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { api, type Course, type LectureJobs, type Lecture, type Transcript } from '../api'
 import NotesPanel from './NotesPanel'
+import MoveLecture from './MoveLecture'
 import SlidesPanel from './SlidesPanel'
 
 function formatClock(seconds: number): string {
@@ -34,7 +35,6 @@ export default function LectureDetail({
   const [query, setQuery] = useState('')
   const [title, setTitle] = useState(lecture.title)
   const [confirmDelete, setConfirmDelete] = useState(false)
-  const [moving, setMoving] = useState(false)
   const [copied, setCopied] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const audioRef = useRef<HTMLAudioElement>(null)
@@ -118,20 +118,6 @@ export default function LectureDetail({
     }
   }
 
-  async function moveTo(courseId: number) {
-    if (courseId === lecture.course_id) return
-    setMoving(true)
-    setError(null)
-    try {
-      await api.updateLecture(lecture.id, { course_id: courseId })
-      onMoved(courseId)
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e))
-    } finally {
-      setMoving(false)
-    }
-  }
-
   async function retranscribe() {
     try {
       setError(null)
@@ -180,21 +166,12 @@ export default function LectureDetail({
           {lecture.duration_seconds != null && (
             <span className="muted">{formatClock(lecture.duration_seconds)}</span>
           )}
-          <label className="move-course">
-            <span className="muted small">Course</span>
-            <select
-              value={lecture.course_id}
-              onChange={(e) => moveTo(Number(e.target.value))}
-              disabled={moving}
-              aria-label="Move to course"
-            >
-              {courses.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name}
-                </option>
-              ))}
-            </select>
-          </label>
+          <MoveLecture
+            lectureId={lecture.id}
+            courseId={lecture.course_id}
+            courses={courses}
+            onMoved={onMoved}
+          />
         </div>
       </header>
 
