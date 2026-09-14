@@ -24,9 +24,12 @@ function formatClock(seconds: number): string {
 
 export default function Recorder({
   onRecorded,
+  onActiveChange,
   disabled,
 }: {
   onRecorded: (blob: Blob, filename: string) => void
+  /** true when recording starts; false once it has ended and been handed off */
+  onActiveChange?: (active: boolean) => void
   disabled?: boolean
 }) {
   const [source, setSource] = useState<Source>('mic')
@@ -141,6 +144,7 @@ export default function Recorder({
         const extension = type.includes('ogg') ? 'ogg' : type.includes('mp4') ? 'm4a' : 'webm'
         cleanup()
         if (blob.size > 0) onRecorded(blob, `recording.${extension}`)
+        onActiveChange?.(false)
       }
       // Flush every second so a crash mid-lecture doesn't lose everything.
       recorder.start(1000)
@@ -150,6 +154,7 @@ export default function Recorder({
       pausedTotalRef.current = 0
       setElapsed(0)
       setState('recording')
+      onActiveChange?.(true)
     } catch (e) {
       cleanup()
       setError(e instanceof Error ? e.message : 'Could not start recording')

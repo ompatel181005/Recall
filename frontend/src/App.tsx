@@ -37,6 +37,11 @@ export default function App() {
   // moment the answer came from rather than at the start.
   const [pendingSeek, setPendingSeek] = useState<number | null>(null)
   const [newTitle, setNewTitle] = useState('')
+  // The recorder's stop handler is a closure from when recording began, so it
+  // reads the title and course through refs rather than stale state.
+  const titleRef = useRef('')
+  const recordingRef = useRef<{ courseId: number; defaultTitle: string } | null>(null)
+  const [recordingCourseId, setRecordingCourseId] = useState<number | null>(null)
   const [uploadPct, setUploadPct] = useState<number | null>(null)
   const [error, setError] = useState<string | null>(null)
   const fileRef = useRef<HTMLInputElement>(null)
@@ -98,6 +103,16 @@ export default function App() {
   const course = courses.find((c) => c.id === courseId) ?? null
   const lecture = lectures.find((l) => l.id === lectureId) ?? null
 
+  // The capture panel stays mounted everywhere, since unmounting it would end a
+  // recording. It is only shown on its own course's Lectures view.
+  const showCapture =
+    !!course &&
+    !lecture &&
+    courseTab === 'lectures' &&
+    (recordingCourseId == null || recordingCourseId === courseId)
+  const recordingCourse =
+    recordingCourseId == null ? null : (courses.find((c) => c.id === recordingCourseId) ?? null)
+
   const defaultTitle = useMemo(() => {
     const today = new Date().toISOString().slice(0, 10)
     return `Lecture ${lectures.length + 1} — ${today}`
@@ -116,21 +131,23 @@ export default function App() {
     }
   }
 
-  /** Shared by the recorder and the file picker: make the lecture row, push the
-   *  audio, and let the backend queue transcription. */
-  async function ingest(blob: Blob, filename: string) {
-    if (courseId == null) return
+  /** Make the lecture row, push the audio, then open it in its own course. */
+  async function ingest(blob: Blob, filename: string, targetCourseId: number, title: string) {
     setError(null)
     setUploadPct(0)
     try {
       const created = await api.createLecture({
-        course_id: courseId,
-        title: newTitle.trim() || defaultTitle,
+        course_id: targetCourseId,
+        title,
         lecture_date: new Date().toISOString().slice(0, 10),
       })
       await api.uploadAudio(created.id, blob, filename, setUploadPct)
       setNewTitle('')
-      await Promise.all([refreshLectures(), refreshCourses()])
+      titleRef.current = ''
+      setCourseTab('lectures')
+      setCourseId(targetCourseId)
+      setLectures(await api.listLectures(targetCourseId))
+      await refreshCourses()
       setLectureId(created.id)
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e))
@@ -139,9 +156,30 @@ export default function App() {
     }
   }
 
+  function onRecordingActive(active: boolean) {
+    if (active && courseId != null) {
+      recordingRef.current = { courseId, defaultTitle }
+      setRecordingCourseId(courseId)
+    } else if (!active) {
+      recordingRef.current = null
+      setRecordingCourseId(null)
+    }
+  }
+
+  function onRecorded(blob: Blob, filename: string) {
+    // Read now: the recorder reports "inactive" straight after this call.
+    const started = recordingRef.current
+    const target = started?.courseId ?? courseId
+    if (target == null) return
+    const title = titleRef.current.trim() || started?.defaultTitle || defaultTitle
+    void ingest(blob, filename, target, title)
+  }
+
   function onPickFile(event: React.ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0]
-    if (file) void ingest(file, file.name)
+    if (file && courseId != null) {
+      void ingest(file, file.name, courseId, newTitle.trim() || defaultTitle)
+    }
     event.target.value = '' // allow re-picking the same file
   }
 
@@ -247,6 +285,14 @@ export default function App() {
       <main className="main">
         {error && <p className="error">{error}</p>}
 
+        {recordingCourse && !showCapture && (
+          <div className="recording-banner">
+            <span className="rec-dot live" />
+            <span>Recording for {recordingCourse.name}</span>
+            <button onClick={() => selectCourse(recordingCourse.id)}>Back to recording</button>
+          </div>
+        )}
+
         {!course && <p className="muted">Create a course to get started.</p>}
 
         {course && lecture && (
@@ -313,19 +359,27 @@ export default function App() {
               <TutorPanel courseId={course.id} onOpenLecture={openLecture} />
             )}
 
-            {courseTab === 'lectures' && (
-              <>
-            <section className="capture">
+          </>
+        )}
+
+        <section className="capture" hidden={!showCapture}>
               <label className="field">
                 <span>Lecture title</span>
                 <input
                   placeholder={defaultTitle}
                   value={newTitle}
-                  onChange={(e) => setNewTitle(e.target.value)}
+                  onChange={(e) => {
+                    setNewTitle(e.target.value)
+                    titleRef.current = e.target.value
+                  }}
                 />
               </label>
 
-              <Recorder onRecorded={ingest} disabled={uploadPct !== null} />
+              <Recorder
+                onRecorded={onRecorded}
+                onActiveChange={onRecordingActive}
+                disabled={uploadPct !== null}
+              />
 
               <div className="import">
                 <button onClick={() => fileRef.current?.click()} disabled={uploadPct !== null}>
@@ -348,8 +402,10 @@ export default function App() {
                   <p className="muted small">Uploading… {Math.round(uploadPct * 100)}%</p>
                 </div>
               )}
-            </section>
+        </section>
 
+        {course && !lecture && courseTab === 'lectures' && (
+          <>
             <h2>Lectures</h2>
             {lectures.length === 0 && <p className="muted">Nothing recorded yet.</p>}
             <ul className="lecture-list">
@@ -371,8 +427,6 @@ export default function App() {
                 </li>
               ))}
             </ul>
-              </>
-            )}
           </>
         )}
       </main>
