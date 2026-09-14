@@ -257,14 +257,9 @@ def reindex_unsearchable() -> int:
     from ..models import Chunk, Transcript
 
     with Session(engine) as session:
-        transcribed = {
-            lecture_id
-            for (lecture_id,) in session.exec(select(Transcript.lecture_id)).all()
-        }
-        indexed = {
-            lecture_id
-            for (lecture_id,) in session.exec(select(Chunk.lecture_id).distinct()).all()
-        }
+        # A single-column select yields plain values, not rows.
+        transcribed = set(session.exec(select(Transcript.lecture_id)).all())
+        indexed = set(session.exec(select(Chunk.lecture_id).distinct()).all())
 
     missing = sorted(transcribed - indexed)
     for lecture_id in missing:

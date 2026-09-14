@@ -111,22 +111,37 @@ if ((Test-Path $ollama) -and -not (Get-Process 'ollama' -ErrorAction SilentlyCon
 }
 
 # -------------------------------------------------------------------- backend
+# One launcher at a time: a second click would otherwise stop the first
+# launcher's still-booting backend and start its own.
+$mutex = New-Object System.Threading.Mutex($false, 'Local\RecallLauncher')
+try { $owned = $mutex.WaitOne(0) } catch [System.Threading.AbandonedMutexException] { $owned = $true }
+if (-not $owned) { return }
+
 $startedBackend = $false
 if (Test-Backend) {
     Write-Host 'Recall is already running — opening the window.'
 } else {
     Stop-Backend   # clear a half-dead process holding the port
-    Start-Process -FilePath $Python `
+
+    $logDir = Join-Path $env:LOCALAPPDATA 'Recall'
+    New-Item -ItemType Directory -Force $logDir | Out-Null
+    $log = Join-Path $logDir 'backend.log'
+    $backend = Start-Process -FilePath $Python -PassThru `
         -ArgumentList '-m', 'uvicorn', 'app.main:app', '--host', '127.0.0.1', '--port', "$Port" `
-        -WorkingDirectory (Join-Path $Root 'backend') -WindowStyle Hidden
+        -WorkingDirectory (Join-Path $Root 'backend') -WindowStyle Hidden `
+        -RedirectStandardError $log -RedirectStandardOutput (Join-Path $logDir 'backend.out.log')
     $startedBackend = $true
 
     $deadline = (Get-Date).AddSeconds(90)
     while (-not (Test-Backend)) {
-        if ((Get-Date) -gt $deadline) {
-            Write-Warning "The backend did not start within 90 seconds. Run it by hand to see why:"
-            Write-Host    "    cd backend; .venv\Scripts\python -m uvicorn app.main:app --port $Port"
-            Read-Host 'Press Enter to close'
+        if ($backend.HasExited -or (Get-Date) -gt $deadline) {
+            # The launcher window is minimised, so a console prompt would go
+            # unseen. Show the actual error instead.
+            $tail = (Get-Content $log -Tail 12 -ErrorAction SilentlyContinue) -join "`n"
+            Add-Type -AssemblyName System.Windows.Forms
+            [System.Windows.Forms.MessageBox]::Show(
+                "Recall's backend failed to start.`n`n$tail`n`nFull log: $log",
+                'Recall', 'OK', 'Error') | Out-Null
             return
         }
         Start-Sleep -Milliseconds 400
