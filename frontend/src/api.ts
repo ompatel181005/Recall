@@ -181,7 +181,10 @@ export const api = {
   getLecture: (id: number) => request<Lecture>(`/lectures/${id}`),
   createLecture: (body: { course_id: number; title: string; lecture_date?: string | null }) =>
     request<Lecture>('/lectures', { method: 'POST', body: JSON.stringify(body) }),
-  updateLecture: (id: number, body: { title?: string; lecture_date?: string | null }) =>
+  updateLecture: (
+    id: number,
+    body: { title?: string; lecture_date?: string | null; course_id?: number },
+  ) =>
     request<Lecture>(`/lectures/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
   deleteLecture: (id: number) => request<void>(`/lectures/${id}`, { method: 'DELETE' }),
 

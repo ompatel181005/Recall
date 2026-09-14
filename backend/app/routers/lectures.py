@@ -13,7 +13,7 @@ from sqlmodel import Session, select
 
 from ..config import settings
 from ..db import get_session
-from ..models import Chunk, Lecture, LectureStatus, Note, SlideDeck, Transcript
+from ..models import Chunk, Course, Lecture, LectureStatus, Note, SlideDeck, Transcript
 from ..schemas import (
     LectureCreate,
     LectureRead,
@@ -176,7 +176,18 @@ def update_lecture(
     lecture_id: int, payload: LectureUpdate, session: Session = Depends(get_session)
 ) -> LectureRead:
     lecture = _get(session, lecture_id)
-    for field, value in payload.model_dump(exclude_none=True).items():
+    changes = payload.model_dump(exclude_none=True)
+
+    target = changes.get("course_id")
+    if target is not None and target != lecture.course_id:
+        if session.get(Course, target) is None:
+            raise HTTPException(status_code=404, detail="Course not found")
+        # Chunks carry their course for the tutor's search, so they move too.
+        for chunk in session.exec(select(Chunk).where(Chunk.lecture_id == lecture_id)).all():
+            chunk.course_id = target
+            session.add(chunk)
+
+    for field, value in changes.items():
         setattr(lecture, field, value.strip() if isinstance(value, str) else value)
     session.add(lecture)
     session.commit()

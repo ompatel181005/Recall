@@ -162,6 +162,15 @@ export default function App() {
     await refreshLectures()
   }, [refreshLectures])
 
+  /** Follow a moved lecture into its new course, keeping it open. */
+  const onLectureMoved = useCallback(
+    async (targetCourseId: number) => {
+      setCourseId(targetCourseId)
+      await refreshCourses()
+    },
+    [refreshCourses],
+  )
+
   const onLectureDeleted = useCallback(async () => {
     setLectureId(null)
     await Promise.all([refreshLectures(), refreshCourses()])
@@ -249,6 +258,8 @@ export default function App() {
               key={lecture.id}
               lecture={lecture}
               initialSeek={pendingSeek}
+              courses={courses}
+              onMoved={onLectureMoved}
               onChanged={onLectureChanged}
               onDeleted={onLectureDeleted}
             />

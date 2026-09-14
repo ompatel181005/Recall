@@ -448,6 +448,18 @@ select:focus {
   padding-top: 14px;
 }
 
+.move-course {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+}
+
+.move-course select {
+  padding: 3px 8px;
+  font-size: 13px;
+}
+
 /* ---- tabs ---- */
 
 .tabs {

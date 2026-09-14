@@ -40,6 +40,7 @@ class LectureCreate(BaseModel):
 class LectureUpdate(BaseModel):
     title: str | None = None
     lecture_date: date | None = None
+    course_id: int | None = None
 
 
 class LectureRead(BaseModel):

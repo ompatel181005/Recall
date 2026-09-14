@@ -209,8 +209,14 @@ def reindex_lecture(
 
 def _replace_chunks(lecture_id: int, rows: list[Chunk]) -> None:
     with Session(engine) as session:
+        # Read the course now, not when indexing began: the lecture may have
+        # been moved while it was being embedded.
+        lecture = session.get(Lecture, lecture_id)
+        if lecture is None:
+            return
         session.exec(delete(Chunk).where(Chunk.lecture_id == lecture_id))
         for row in rows:
+            row.course_id = lecture.course_id
             session.add(row)
         session.commit()
 
