@@ -5,6 +5,9 @@ model is strong enough to avoid the invented-detail problem a local 7B has on
 summarisation. Get a key at https://aistudio.google.com/apikey.
 """
 
+import random
+import time
+
 from ...config import settings
 from .base import EmbeddingProvider, LLMProvider
 
@@ -13,6 +16,32 @@ from .base import EmbeddingProvider, LLMProvider
 # exactly the caller's budget can therefore return an empty response that hit
 # the cap while still thinking, so give the reasoning its own room on top.
 THINKING_HEADROOM = 2048
+
+# The free tier sheds load: a model can answer 503 "high demand" and then serve
+# the same request seconds later, so a short backoff rescues most calls. 429 is
+# deliberately not retried — that is the per-minute quota, which backing off
+# cannot reliably clear, and failing fast gives a clearer error than stalling.
+RETRY_STATUSES = (503, 504)
+# Six attempts, ~45s of backoff in total. Measured: four attempts still
+# gave up on a real lecture-sized prompt during a busy spell. Notes and
+# indexing are background jobs, so waiting beats surfacing an error.
+MAX_ATTEMPTS = 6
+
+
+def _with_retry(call):
+    """Run a Gemini call, retrying the transient overload codes with backoff."""
+    from google.genai import errors
+
+    for attempt in range(MAX_ATTEMPTS):
+        try:
+            return call()
+        except errors.APIError as e:
+            last = e
+            if e.code not in RETRY_STATUSES or attempt == MAX_ATTEMPTS - 1:
+                raise
+            # Jitter so a batch of chunks doesn't retry in lockstep.
+            time.sleep(1.5 * 2**attempt + random.uniform(0, 0.5))
+    raise last
 
 
 class GeminiProvider(LLMProvider):
@@ -40,19 +69,21 @@ class GeminiProvider(LLMProvider):
             for message in messages
         ]
 
-        response = client.models.generate_content(
-            model=self.model,
-            contents=contents,
-            config=types.GenerateContentConfig(
-                system_instruction=system or None,
-                max_output_tokens=max_tokens + THINKING_HEADROOM,
-                temperature=temperature,
-                # We never pass tools, and leaving this on makes the SDK warn
-                # about automatic function calling on every single request.
-                automatic_function_calling=types.AutomaticFunctionCallingConfig(
-                    disable=True
+        response = _with_retry(
+            lambda: client.models.generate_content(
+                model=self.model,
+                contents=contents,
+                config=types.GenerateContentConfig(
+                    system_instruction=system or None,
+                    max_output_tokens=max_tokens + THINKING_HEADROOM,
+                    temperature=temperature,
+                    # We never pass tools, and leaving this on makes the SDK warn
+                    # about automatic function calling on every single request.
+                    automatic_function_calling=types.AutomaticFunctionCallingConfig(
+                        disable=True
+                    ),
                 ),
-            ),
+            )
         )
 
         text = response.text or ""
@@ -87,7 +118,9 @@ class GeminiEmbedder(EmbeddingProvider):
         from google import genai
 
         client = genai.Client(api_key=settings.gemini_api_key)
-        response = client.models.embed_content(model=self.model, contents=texts)
+        response = _with_retry(
+            lambda: client.models.embed_content(model=self.model, contents=texts)
+        )
         return [list(e.values) for e in response.embeddings]
 
     def available(self) -> bool:

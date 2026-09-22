@@ -26,6 +26,11 @@ tasks:
     provider: claude
     model: claude-sonnet-5
     compare_with:       # offered in the UI beside the default, to compare quality
+      # 3.6 first: 3.7-flash is the newest free model and is usually at
+      # capacity (503 "high demand"), while 3.6 answered every test call in
+      # ~3s. 3.5-flash was tried and dropped — it 503'd through every retry.
+      - provider: gemini
+        model: gemini-3.6-flash
       - provider: gemini
         model: gemini-3.7-flash
       - provider: ollama
